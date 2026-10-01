@@ -15,7 +15,7 @@ stdout '^api=.*api$'
 # From elsewhere, pickup by project uses paths and the default agent.
 cd $WORK/home
 exec baton pickup api @auth --print
-stdout '^cd .*api && claude ''/pickup @auth''$'
+stdout '^cd .*api.? && claude .\/pickup @auth.$'
 exec baton pickup api --print --agent opencode
 stdout 'opencode --prompt /pickup$'
 exec baton pickup api --print --json

@@ -4,6 +4,7 @@ package agent
 import (
 	"fmt"
 	"os/exec"
+	"runtime"
 	"strings"
 )
 
@@ -89,7 +90,8 @@ func Resolve(argv []string) (string, error) {
 	return p, nil
 }
 
-// Quote renders argv as a POSIX shell command line for --print.
+// Quote renders argv as a command line for --print: POSIX shell quoting, or
+// double quotes on Windows (cmd and PowerShell).
 func Quote(argv []string) string {
 	parts := make([]string, len(argv))
 	for i, a := range argv {
@@ -98,10 +100,26 @@ func Quote(argv []string) string {
 	return strings.Join(parts, " ")
 }
 
-// QuoteArg quotes one argument for a POSIX shell when needed.
+const safeChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@%+=:,./_-"
+
+// QuoteArg quotes one argument when needed.
 func QuoteArg(a string) string {
-	if a != "" && strings.Trim(a, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@%+=:,./_-") == "" {
+	if runtime.GOOS == "windows" {
+		return quoteWindows(a)
+	}
+	return quotePOSIX(a)
+}
+
+func quotePOSIX(a string) string {
+	if a != "" && strings.Trim(a, safeChars) == "" {
 		return a
 	}
 	return "'" + strings.ReplaceAll(a, "'", `'\''`) + "'"
+}
+
+func quoteWindows(a string) string {
+	if a != "" && strings.Trim(a, safeChars+`\`) == "" {
+		return a
+	}
+	return `"` + strings.ReplaceAll(a, `"`, `\"`) + `"`
 }

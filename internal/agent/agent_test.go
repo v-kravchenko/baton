@@ -40,7 +40,10 @@ func TestExpand(t *testing.T) {
 }
 
 func TestQuote(t *testing.T) {
-	if got := Quote([]string{"claude", "/pickup @api", "it's"}); got != `claude '/pickup @api' 'it'\''s'` {
-		t.Errorf("got %s", got)
+	if got := quotePOSIX("/pickup @api") + " " + quotePOSIX("it's"); got != `'/pickup @api' 'it'\''s'` {
+		t.Errorf("posix: %s", got)
+	}
+	if got := quoteWindows(`C:\work\api`) + " " + quoteWindows("/pickup @api"); got != `C:\work\api "/pickup @api"` {
+		t.Errorf("windows: %s", got)
 	}
 }

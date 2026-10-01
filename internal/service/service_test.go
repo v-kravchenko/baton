@@ -1,6 +1,7 @@
 package service
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -14,13 +15,13 @@ func TestPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	unit := p.Files["/home/u/.config/systemd/user/baton.service"]
+	unit := p.Files[filepath.Join("/home/u", ".config", "systemd", "user", "baton.service")]
 	if !strings.Contains(unit, `ExecStart="/opt/my tools/baton" dashboard --no-open`) || !strings.Contains(unit, "Environment=BATON_ROOT=/r") {
 		t.Errorf("unit = %s", unit)
 	}
 	s.GOOS = "darwin"
 	p, _ = Action(s, "install")
-	if c := p.Commands[1]; strings.Join(c, " ") != "launchctl bootstrap gui/501 /home/u/Library/LaunchAgents/com.baton.dashboard.plist" {
+	if c := p.Commands[1]; strings.Join(c, " ") != "launchctl bootstrap gui/501 "+filepath.Join("/home/u", "Library", "LaunchAgents", "com.baton.dashboard.plist") {
 		t.Errorf("launchd = %v", c)
 	}
 	s.GOOS = "windows"
