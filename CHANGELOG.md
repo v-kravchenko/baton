@@ -10,6 +10,8 @@
 - Dashboard: tip ages use the file time ("5m ago"), like handoffs.
 - Dashboard: every history row has View and Diff (Diff is disabled on the
   first version).
+- `baton dashboard --background` fails when the port is already taken (e.g.
+  by `baton service`) instead of reporting a dashboard that exited.
 - Dashboard: fixed a data race on allowed host names during config reload
   (could crash the server); CSRF token compared in constant time; read and
   write timeouts; the login-failure table no longer grows without bound.

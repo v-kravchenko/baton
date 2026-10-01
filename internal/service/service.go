@@ -95,13 +95,13 @@ func Running(state string) int {
 }
 
 // Background starts `exe args...` detached, with output to the log file.
-func Background(state, exe string, args []string) (int, error) {
+func Background(state, exe string, args []string) (int, <-chan struct{}, error) {
 	if err := os.MkdirAll(state, 0o755); err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	logf, err := os.OpenFile(LogFile(state), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	defer logf.Close()
 	fmt.Fprintf(logf, "--- %s starting %s %s\n", time.Now().Format(time.RFC3339), exe, strings.Join(args, " "))
@@ -110,11 +110,16 @@ func Background(state, exe string, args []string) (int, error) {
 	cmd.Stdin = nil
 	detach(cmd)
 	if err := cmd.Start(); err != nil {
-		return 0, err
+		return 0, nil, err
 	}
-	pid := cmd.Process.Pid
-	cmd.Process.Release()
-	return pid, nil
+	// Waiting (not Release) reaps a child that exits early, so the caller
+	// sees the exit instead of a zombie that still looks alive.
+	exited := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(exited)
+	}()
+	return cmd.Process.Pid, exited, nil
 }
 
 // Stop terminates the recorded dashboard.

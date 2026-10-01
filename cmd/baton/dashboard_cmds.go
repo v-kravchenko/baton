@@ -87,13 +87,18 @@ func cmdDashboard(app *App, a *args) error {
 		if err != nil {
 			return err
 		}
+		addr := net.JoinHostPort(strings.Trim(dialHost(host), "[]"), strconv.Itoa(port))
+		// Someone else on the port (e.g. `baton service`) would make the
+		// readiness check below pass while the new process fails to bind.
+		if listening(addr) {
+			return fmt.Errorf("port %d is already in use (a dashboard from `baton service`, or another program)", port)
+		}
 		args := []string{"dashboard", "--no-open", "--host", host, "--port", strconv.Itoa(port)}
-		pid, err := service.Background(state, exe, args)
+		pid, exited, err := service.Background(state, exe, args)
 		if err != nil {
 			return err
 		}
-		addr := net.JoinHostPort(strings.Trim(dialHost(host), "[]"), strconv.Itoa(port))
-		if !waitListening(addr, 5*time.Second) {
+		if !waitListening(addr, exited, 5*time.Second) {
 			return fmt.Errorf("dashboard did not start; see %s", service.LogFile(state))
 		}
 		if a.bools["json"] {
@@ -116,16 +121,36 @@ func dialHost(h string) string {
 	return h
 }
 
-func waitListening(addr string, d time.Duration) bool {
-	deadline := time.Now().Add(d)
-	for time.Now().Before(deadline) {
-		if c, err := net.DialTimeout("tcp", addr, 200*time.Millisecond); err == nil {
-			c.Close()
-			return true
-		}
-		time.Sleep(100 * time.Millisecond)
+func listening(addr string) bool {
+	c, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
+	if err != nil {
+		return false
 	}
-	return false
+	c.Close()
+	return true
+}
+
+// waitListening waits until addr accepts connections, failing early when
+// the started process exits.
+func waitListening(addr string, exited <-chan struct{}, d time.Duration) bool {
+	deadline := time.After(d)
+	for {
+		if listening(addr) {
+			select {
+			case <-exited:
+				return false
+			default:
+				return true
+			}
+		}
+		select {
+		case <-exited:
+			return false
+		case <-deadline:
+			return false
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
 }
 
 func (app *App) openURL(url string) {

@@ -94,7 +94,7 @@ func (app *App) restartDashboard(exe string) error {
 			return err
 		}
 		args := []string{"dashboard", "--no-open", "--host", app.Cfg.Host, "--port", strconv.Itoa(app.Cfg.Port)}
-		npid, err := service.Background(app.Dirs.State, exe, args)
+		npid, _, err := service.Background(app.Dirs.State, exe, args)
 		if err != nil {
 			return err
 		}
