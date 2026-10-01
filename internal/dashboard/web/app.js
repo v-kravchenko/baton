@@ -709,12 +709,7 @@
       if (p.dir) pt.appendChild(el("span", "ppath", tilde(p.dir)));
       head.appendChild(pt);
       if (p.conflicts.length) head.appendChild(chip(p.conflicts.length + " sync conflicts", "warn", p.conflicts.join("\n")));
-      if (p.updated && !p.updated.startsWith("0001")) {
-        const a = el("span", "age last", age(p.updated));
-        a.title = "last handoff " + when(p.updated);
-        head.appendChild(a);
-      }
-      head.appendChild(dirDot(p, p.key, head.querySelector(".last") ? "" : "last"));
+      head.appendChild(dirDot(p, p.key, "last"));
       sec.appendChild(head);
 
       // Tasks | Tips tabs when the project has both.
@@ -869,6 +864,7 @@
   $("#scrim").addEventListener("click", closePanel);
   $("#navsel").addEventListener("change", (e) => pick(e.target.value));
   window.addEventListener("popstate", () => { state.proj = fromHash(); render(); });
+  $("#home").addEventListener("click", (e) => { e.preventDefault(); pick("all"); });
   state.proj = fromHash();
 
   let searchTimer = 0;

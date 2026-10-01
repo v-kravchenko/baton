@@ -64,6 +64,7 @@ main { max-width: 1240px; margin: 0 auto; padding: 18px; min-height: 100vh;
 .mono, code, .task { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 header { display: flex; align-items: center; gap: 12px; margin: 4px 0 14px; }
 h1 { font-size: 20px; margin: 0; margin-right: auto; }
+h1 a { color: inherit; text-decoration: none; }
 mark { background: var(--mark); color: inherit; border-radius: 2px; }
 .meta { color: var(--muted); font-size: 14px; }
 button, #q { font: inherit; color: var(--fg); background: var(--card);

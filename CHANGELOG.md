@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4
+
+- Dashboard: the "baton" title links to All.
+- Dashboard: the project header no longer repeats the last handoff age
+  (each task shows its own).
+
 ## 0.1.3
 
 - Dashboard: project availability on this machine is a green/orange dot at
