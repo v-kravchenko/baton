@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6
+
+- `baton pickup PROJECT @task "PROMPT"` passes extra instructions to the
+  agent (`{prompt}` placeholder, or appended after `{task}`); the pickup
+  skill and command follow them after loading the handoff.
+
 ## 0.1.5
 
 - Dashboard: a project that is a git repository shows a GitHub/GitLab/git

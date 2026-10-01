@@ -48,7 +48,7 @@ func init() {
 		"tips": {cmdTips, map[string]bool{"error": false, "all": false, "global": false, "title": true, "when": true,
 			"keywords": true, "cites": true, "origin": true, "env": true}, "baton tips search|list|show|new|verified|refuted|supersede|move"},
 		"path":   {cmdPath, nil, "baton path set KEY DIR | list | prune"},
-		"pickup": {cmdPickup, map[string]bool{"agent": true, "print": false}, "baton pickup [PROJECT] [@task] [--agent X] [--print]"},
+		"pickup": {cmdPickup, map[string]bool{"agent": true, "print": false}, "baton pickup [PROJECT] [@task] [PROMPT] [--agent X] [--print]"},
 		"dashboard": {cmdDashboard, map[string]bool{"port": true, "host": true, "no-open": false, "background": false, "stop": false},
 			"baton dashboard [--port N] [--host H] [--no-open] [--background|--stop] [--json]"},
 		"service":   {cmdService, map[string]bool{"dry-run": false}, "baton service install|status|restart|uninstall [--dry-run]"},
@@ -63,7 +63,7 @@ usage:
   baton save [@task] [--from PARENT] [--title T]   body from stdin
   baton show [@task|FILE]
   baton tasks | done TASK | restore TASK | rename OLD NEW | history TASK [N] | stale FILE
-  baton pickup [PROJECT] [@task] [--agent X] [--print]
+  baton pickup [PROJECT] [@task] [PROMPT] [--agent X] [--print]
   baton path set KEY DIR | list | prune
   baton tips search [--error] WORDS | show ID | new [--global] | verified ID |
              refuted ID WHY | supersede OLD NEW | move ID global|project | list

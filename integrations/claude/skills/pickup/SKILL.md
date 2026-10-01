@@ -1,14 +1,15 @@
 ---
 name: pickup
 description: Continue a task from its baton handoff. Use on /pickup [@task], or when the user asks to resume, continue or pick up earlier work in this project.
-argument-hint: "[@task]"
+argument-hint: "[@task] [prompt]"
+arguments: [task]
 allowed-tools: Bash(baton *)
 ---
 <!-- managed by baton integrate: edits are overwritten by baton update -->
 
 Arguments: $ARGUMENTS
 
-!`baton show $ARGUMENTS`
+!`baton show $task`
 
 The output above comes from `baton show`. If it is missing, run
 `baton show @task` (or `baton show` without a task) yourself from the project
@@ -35,6 +36,9 @@ root, without `cd`.
 4. Tell the user in a few lines: the goal, where things stand, what changed
    since the handoff, and the first next step. Then continue, unless the
    handoff or the user says to wait.
+5. Words after `@task` in the arguments are the user's instructions for this
+   session (for example "start with step 2"). They override the handoff's
+   next steps and its "wait" notes; follow them after steps 1-4.
 
 Keep using the same task name, and save with `/handoff` before the session
 ends.

@@ -11,6 +11,7 @@ import (
 // Vars are the placeholder values for a template.
 type Vars struct {
 	Task    string // "@name" or ""
+	Prompt  string // extra instructions for the agent, or ""
 	Project string
 	Dir     string
 	Root    string
@@ -60,7 +61,7 @@ func Split(tmpl string) ([]string, error) {
 // Expand substitutes placeholders in every argument separately. Trailing
 // spaces are trimmed; arguments that become empty are dropped.
 func Expand(args []string, v Vars) []string {
-	r := strings.NewReplacer("{task}", v.Task, "{project}", v.Project, "{dir}", v.Dir, "{root}", v.Root)
+	r := strings.NewReplacer("{task}", v.Task, "{prompt}", v.Prompt, "{project}", v.Project, "{dir}", v.Dir, "{root}", v.Root)
 	out := make([]string, 0, len(args))
 	for i, a := range args {
 		e := strings.TrimRight(r.Replace(a), " \t")
@@ -72,11 +73,22 @@ func Expand(args []string, v Vars) []string {
 	return out
 }
 
-// Build parses and expands a template.
+// Build parses and expands a template. A prompt goes into {prompt}; templates
+// without it get the prompt after {task} in the same argument.
 func Build(tmpl string, v Vars) ([]string, error) {
 	args, err := Split(tmpl)
 	if err != nil {
 		return nil, err
+	}
+	if v.Prompt != "" && !strings.Contains(tmpl, "{prompt}") {
+		i := 0
+		for i < len(args) && !strings.Contains(args[i], "{task}") {
+			i++
+		}
+		if i == len(args) {
+			return nil, fmt.Errorf("template has neither {prompt} nor {task}, nowhere to put the prompt")
+		}
+		args[i] = strings.Replace(args[i], "{task}", "{task} {prompt}", 1)
 	}
 	return Expand(args, v), nil
 }

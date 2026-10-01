@@ -146,7 +146,7 @@ a non-zero exit means a real error.
 baton save [@task] [--from PARENT] [--title T]   # body on stdin
 baton show [@task|FILE]                          # handoff + staleness + forks + tips, or a STATE line
 baton tasks | done TASK | restore TASK | rename OLD NEW | history TASK [N] | stale FILE|@task
-baton pickup [PROJECT] [@task] [--agent X] [--print]
+baton pickup [PROJECT] [@task] [PROMPT] [--agent X] [--print]
 baton path set KEY DIR | list | prune
 baton tips search [--error] [--all] WORDS | show ID | new [--global] | verified ID |
            refuted ID WHY | supersede OLD NEW | move ID global|project | list [--all]
@@ -184,6 +184,11 @@ in `~` does not look for a project called after your user name.
 
 Agents are named templates in the config. `pickup` uses `agent.default`;
 `--agent X` picks another. `--print` shows the command instead of running it.
+
+`baton pickup PROJECT @task "PROMPT"` passes extra instructions to the agent:
+they replace `{prompt}`, or follow `{task}` in the same argument when the
+template has no `{prompt}`, so `claude "/pickup {task}"` becomes
+`claude "/pickup @task PROMPT"`. A prompt needs PROJECT and `@task`.
 On Unix baton `exec`s the agent; on Windows it starts it as a child process
 with inherited stdio and returns its exit code.
 
@@ -229,7 +234,8 @@ An agent template is split into arguments on whitespace, honoring `"..."` and
 (`C:\tools\x.exe`) work as is. Placeholders are substituted in each argument
 separately and the program runs without a shell, so there is no injection:
 `{task}` (`@name` or empty; trailing spaces of the argument are trimmed, so
-`"/pickup {task}"` becomes `/pickup`), `{project}`, `{dir}`, `{root}`.
+`"/pickup {task}"` becomes `/pickup`), `{prompt}` (the pickup prompt or
+empty), `{project}`, `{dir}`, `{root}`.
 The dashboard shows a copy-pickup button per `agent.*` line, in their order;
 without `agent.*` lines it shows none (the built-in agents serve the CLI only).
 

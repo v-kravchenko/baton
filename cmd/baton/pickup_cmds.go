@@ -124,12 +124,21 @@ func pickupTarget(app *App, project string) (key, dir string, err error) {
 
 func cmdPickup(app *App, a *args) error {
 	task, rest := splitTask(a.pos)
-	if len(rest) > 1 {
-		return usageErr("too many arguments")
+	if len(rest) > 2 {
+		return usageErr("too many arguments; quote the prompt")
 	}
-	project := ""
-	if len(rest) == 1 {
+	project, prompt := "", ""
+	if len(rest) >= 1 {
 		project = strings.ToLower(rest[0])
+		if _, err := store.TaskName(project); err != nil { // same charset as task names
+			return usageErr("invalid project %q; a prompt goes after PROJECT and @task", rest[0])
+		}
+	}
+	if len(rest) == 2 {
+		prompt = strings.TrimSpace(rest[1])
+		if task == "" {
+			return usageErr("PROMPT needs @task")
+		}
 	}
 	if task != "" {
 		var err error
@@ -145,7 +154,7 @@ func cmdPickup(app *App, a *args) error {
 	if err != nil {
 		return err
 	}
-	v := agent.Vars{Project: key, Dir: dir, Root: app.Cfg.Root}
+	v := agent.Vars{Prompt: prompt, Project: key, Dir: dir, Root: app.Cfg.Root}
 	if task != "" {
 		v.Task = "@" + task
 	}

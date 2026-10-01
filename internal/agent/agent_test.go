@@ -37,6 +37,18 @@ func TestExpand(t *testing.T) {
 	if !reflect.DeepEqual(got, []string{"claude", "/pickup @api"}) {
 		t.Errorf("got %q", got)
 	}
+	v.Prompt = "start at {task} step 2"
+	got, _ = Build(`claude "/pickup {task}"`, v)
+	if !reflect.DeepEqual(got, []string{"claude", "/pickup @api start at {task} step 2"}) {
+		t.Errorf("prompt after task: got %q", got)
+	}
+	got, _ = Build(`x {task} --msg={prompt}`, v)
+	if !reflect.DeepEqual(got, []string{"x", "@api", "--msg=start at {task} step 2"}) {
+		t.Errorf("{prompt}: got %q", got)
+	}
+	if _, err := Build(`x {project}`, v); err == nil {
+		t.Error("prompt without a place accepted")
+	}
 }
 
 func TestQuote(t *testing.T) {

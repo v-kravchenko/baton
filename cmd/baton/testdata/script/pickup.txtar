@@ -18,6 +18,12 @@ exec baton pickup api @auth --print
 stdout '^cd .*api.? && claude .\/pickup @auth.$'
 exec baton pickup api --print --agent opencode
 stdout 'opencode --prompt /pickup$'
+exec baton pickup api @auth 'почни з кроку 2' --print
+stdout 'claude .\/pickup @auth почни з кроку 2.$'
+! exec baton pickup api 'почни з кроку 2' --print
+stderr 'PROMPT needs @task'
+! exec baton pickup @auth 'почни з кроку 2' --print
+stderr 'a prompt goes after PROJECT and @task'
 exec baton pickup api --print --json
 stdout '"argv": \['
 ! exec baton pickup api --agent nope --print
@@ -47,6 +53,8 @@ exec baton pickup api @auth --print
 stdout 'echo picked @auth api'
 [!windows] exec baton pickup api @auth
 [!windows] stdout '^picked @auth api$'
+[!windows] exec baton pickup api @auth 'go on'
+[!windows] stdout '^picked @auth go on api$'
 
 -- body.md --
 ## Goal

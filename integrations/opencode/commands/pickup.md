@@ -5,7 +5,10 @@ description: Continue a task from its baton handoff
 
 Arguments: $ARGUMENTS
 
-Run `baton show $ARGUMENTS` with bash from the project root, without `cd`.
+Run `baton show @task` with bash from the project root, without `cd`, using
+only the first argument when it starts with `@` (otherwise `baton show`).
+Words after `@task` are the user's instructions for this session: follow them
+after loading the handoff; they override its next steps.
 
 - `STATE: CHOOSE TASK`: ask the user which task, then run `baton show @task`.
 - `STATE: NO TASK`: show the active and archived tasks; ask which to use or
