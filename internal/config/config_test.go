@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -99,5 +100,60 @@ func TestParseDuration(t *testing.T) {
 	}
 	if _, err := ParseDuration("x"); err == nil {
 		t.Error("x accepted")
+	}
+}
+
+func TestObsidianVault(t *testing.T) {
+	t.Setenv("BATON_ROOT", "")
+	load := func(cfg string) (Config, error) {
+		dir := t.TempDir()
+		os.WriteFile(filepath.Join(dir, "config"), []byte(cfg), 0o644)
+		return Load(Dirs{Home: t.TempDir(), Config: dir})
+	}
+	for cfg, want := range map[string]string{
+		"obsidian.vault = /v\n":                                filepath.Join("/v", "baton"),
+		"obsidian.vault = /v/\nobsidian.folder = Dev/baton/\n": filepath.Join("/v", "Dev", "baton"),
+		"obsidian.vault = \"/my v\"\nobsidian.folder = x\n":    filepath.Join("/my v", "x"),
+		"root = \nobsidian.vault = /v\n":                       filepath.Join("/v", "baton"),
+	} {
+		c, err := load(cfg)
+		if err != nil || c.Root != want || c.ObsidianVault == "" || len(c.Warnings) != 0 {
+			t.Errorf("%q: root %q, want %q; %v %v", cfg, c.Root, want, err, c.Warnings)
+		}
+	}
+	for _, cfg := range []string{
+		"root = /r\nobsidian.vault = /v\n",
+		"obsidian.vault = /v\nobsidian.folder =\n",
+		"obsidian.vault = /v\nobsidian.folder = .\n",
+		"obsidian.vault = /v\nobsidian.folder = ../x\n",
+		"obsidian.vault = /v\nobsidian.folder = /abs\n",
+		"obsidian.vault = /v\nobsidian.folder = ~/x\n",
+	} {
+		if _, err := load(cfg); err == nil {
+			t.Errorf("%q accepted", cfg)
+		}
+	}
+	c, err := load("obsidian.folder = x\n")
+	if err != nil || len(c.Warnings) != 1 || c.ObsidianVault != "" {
+		t.Errorf("folder without vault: %v %v", err, c.Warnings)
+	}
+	t.Setenv("BATON_ROOT", "/env")
+	if c, err := load("obsidian.vault = /v\n"); err != nil || c.Root != "/env" {
+		t.Errorf("BATON_ROOT: %q %v", c.Root, err)
+	}
+}
+
+func TestObsidianMoveHint(t *testing.T) {
+	t.Setenv("BATON_ROOT", "")
+	home, dir, vault := t.TempDir(), t.TempDir(), t.TempDir()
+	os.MkdirAll(filepath.Join(home, ".local", "share", "baton", "p"), 0o755)
+	os.WriteFile(filepath.Join(dir, "config"), []byte("obsidian.vault = "+vault+"\n"), 0o644)
+	c, _ := Load(Dirs{Home: home, Config: dir})
+	if len(c.Warnings) != 1 || !strings.Contains(c.Warnings[0], "mv ") {
+		t.Errorf("warnings = %v", c.Warnings)
+	}
+	os.MkdirAll(filepath.Join(vault, "baton"), 0o755)
+	if c, _ := Load(Dirs{Home: home, Config: dir}); len(c.Warnings) != 0 {
+		t.Errorf("hint after move: %v", c.Warnings)
 	}
 }

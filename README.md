@@ -212,6 +212,8 @@ Overrides: `BATON_CONFIG_DIR` (directory with `config` and `paths`),
 ```text
 root = ~/Sync/handoffs
 keep = 10
+obsidian.vault =
+obsidian.folder = baton
 dashboard.host = 127.0.0.1
 dashboard.port = 8765
 dashboard.public_url =
@@ -232,6 +234,16 @@ key commented out at its default, unless it exists; `baton config path`
 prints its location. `baton integrate NAME` appends `agent.NAME` with the
 template above unless a line for it exists; `--uninstall` removes it again
 (and `agent.default` naming it) unless it was edited.
+
+`obsidian.vault` (the vault directory, empty by default) turns on the
+Obsidian integration and puts the root into that vault:
+`<obsidian.vault>/<obsidian.folder>` (folder `baton` by default; nested
+folders such as `Dev/baton` work). Set either `root` or `obsidian.vault`, not
+both: with both, every command fails. The folder must be a relative path inside
+the vault, not the vault itself, since baton would take every vault folder
+for a project. `BATON_ROOT` still overrides both. If the new root does not
+exist yet while the default root has data, commands print the `mv` that moves
+it. The vault path is per machine like the rest of the config.
 
 An agent template is split into arguments on whitespace, honoring `"..."` and
 `'...'`. Backslash is not an escape character, so Windows paths

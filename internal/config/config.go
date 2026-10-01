@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -77,16 +78,20 @@ type Agent struct {
 
 // Config is the parsed config file with defaults applied.
 type Config struct {
-	Root         string
-	Keep         int
-	Host         string
-	Port         int
-	PublicURL    string
-	Auth         bool
-	AuthIdle     time.Duration
-	AuthMax      time.Duration
-	DefaultAgent string
-	Agents       []Agent // in config order
+	Root string
+	// ObsidianVault enables the Obsidian integration; Root is then
+	// <ObsidianVault>/<ObsidianFolder>.
+	ObsidianVault  string
+	ObsidianFolder string
+	Keep           int
+	Host           string
+	Port           int
+	PublicURL      string
+	Auth           bool
+	AuthIdle       time.Duration
+	AuthMax        time.Duration
+	DefaultAgent   string
+	Agents         []Agent // in config order
 	// BuiltinAgents: no agent.<name> line, Agents holds DefaultAgents.
 	BuiltinAgents bool
 	Warnings      []string
@@ -101,12 +106,13 @@ var DefaultAgents = []Agent{
 // Defaults returns the config used when no file exists.
 func Defaults(home string) Config {
 	return Config{
-		Root:     filepath.Join(home, ".local", "share", "baton"),
-		Keep:     10,
-		Host:     "127.0.0.1",
-		Port:     8765,
-		AuthIdle: 7 * 24 * time.Hour,
-		AuthMax:  30 * 24 * time.Hour,
+		Root:           filepath.Join(home, ".local", "share", "baton"),
+		Keep:           10,
+		ObsidianFolder: "baton",
+		Host:           "127.0.0.1",
+		Port:           8765,
+		AuthIdle:       7 * 24 * time.Hour,
+		AuthMax:        30 * 24 * time.Hour,
 	}
 }
 
@@ -167,10 +173,29 @@ func Load(d Dirs) (Config, error) {
 	}
 	entries, warns := ParseEntries(data)
 	c.Warnings = warns
+	var rootSet, folderSet bool
 	for _, e := range entries {
 		if err := c.apply(e, d.Home); err != nil {
 			c.Warnings = append(c.Warnings, fmt.Sprintf("config line %d: %v", e.Line, err))
 		}
+		rootSet = rootSet || e.Key == "root" && e.Value != ""
+		folderSet = folderSet || e.Key == "obsidian.folder"
+	}
+	if c.ObsidianVault != "" {
+		if rootSet {
+			return c, fmt.Errorf("%s: root and obsidian.vault are both set; keep one (with obsidian.vault the root is <vault>/<obsidian.folder>)", d.ConfigFile())
+		}
+		folder, err := cleanFolder(c.ObsidianFolder)
+		if err != nil {
+			return c, fmt.Errorf("%s: obsidian.folder: %v", d.ConfigFile(), err)
+		}
+		c.ObsidianFolder = folder
+		c.Root = filepath.Join(c.ObsidianVault, filepath.FromSlash(folder))
+		if old := Defaults(d.Home).Root; os.Getenv("BATON_ROOT") == "" && hasEntries(old) && !exists(c.Root) {
+			c.Warnings = append(c.Warnings, fmt.Sprintf("%s does not exist yet but %s has data; move it: mv %s %s", c.Root, old, old, c.Root))
+		}
+	} else if folderSet {
+		c.Warnings = append(c.Warnings, "obsidian.folder has no effect without obsidian.vault")
 	}
 	if len(c.Agents) == 0 {
 		c.Agents = append(c.Agents, DefaultAgents...)
@@ -185,6 +210,34 @@ func Load(d Dirs) (Config, error) {
 	return c, nil
 }
 
+// cleanFolder checks obsidian.folder: a relative path inside the vault, not
+// the vault itself (baton would take every vault folder for a project).
+func cleanFolder(f string) (string, error) {
+	f = strings.ReplaceAll(f, `\`, "/")
+	if strings.HasPrefix(f, "/") || filepath.VolumeName(f) != "" || strings.HasPrefix(f, "~") {
+		return "", fmt.Errorf("want a path relative to the vault, got %q", f)
+	}
+	for _, part := range strings.Split(f, "/") {
+		if part == ".." {
+			return "", fmt.Errorf("must stay inside the vault, got %q", f)
+		}
+	}
+	if f = path.Clean("/" + f)[1:]; f == "" {
+		return "", fmt.Errorf("must name a folder inside the vault")
+	}
+	return f, nil
+}
+
+func exists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
+}
+
+func hasEntries(dir string) bool {
+	es, err := os.ReadDir(dir)
+	return err == nil && len(es) > 0
+}
+
 func (c *Config) apply(e Entry, home string) error {
 	v := e.Value
 	switch e.Key {
@@ -192,6 +245,13 @@ func (c *Config) apply(e Entry, home string) error {
 		if v != "" {
 			c.Root = ExpandHome(unquote(v), home)
 		}
+	case "obsidian.vault":
+		c.ObsidianVault = ""
+		if v := unquote(v); v != "" {
+			c.ObsidianVault = filepath.Clean(ExpandHome(v, home))
+		}
+	case "obsidian.folder":
+		c.ObsidianFolder = unquote(v)
 	case "keep":
 		n, err := strconv.Atoi(v)
 		if err != nil || n < 0 {
@@ -329,6 +389,11 @@ const DefaultFile = `# baton config: flat "key = value"; # starts a comment.
 
 # root = ~/.local/share/baton
 # keep = 10
+
+# Obsidian: keep the handoffs in a vault folder instead of root (set only
+# one of root and obsidian.vault); root becomes <vault>/<obsidian.folder>.
+# obsidian.vault =
+# obsidian.folder = baton
 
 # dashboard.host = 127.0.0.1
 # dashboard.port = 8765
