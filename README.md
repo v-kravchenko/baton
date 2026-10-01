@@ -148,6 +148,7 @@ baton dashboard [--port N] [--host H] [--no-open] [--background|--stop] [--json]
 baton service install|status|restart|uninstall [--dry-run]
 baton auth status|on|off|password|logout-all
 baton integrate claude|opencode [--uninstall] [--force]
+baton config init|path
 baton template
 baton update [--check] [--force]
 baton version
@@ -211,13 +212,20 @@ Flat `key = value`; `#` starts a comment at the beginning of a line or after
 whitespace. An unknown key is a warning, not an error. Without any `agent.*`
 lines the two agents above are built in.
 
+`baton config init` (run by the install scripts) writes the file with every
+key commented out at its default, unless it exists; `baton config path`
+prints its location. `baton integrate NAME` appends `agent.NAME` with the
+template above unless a line for it exists; `--uninstall` removes it again
+(and `agent.default` naming it) unless it was edited.
+
 An agent template is split into arguments on whitespace, honoring `"..."` and
 `'...'`. Backslash is not an escape character, so Windows paths
 (`C:\tools\x.exe`) work as is. Placeholders are substituted in each argument
 separately and the program runs without a shell, so there is no injection:
 `{task}` (`@name` or empty; trailing spaces of the argument are trimmed, so
 `"/pickup {task}"` becomes `/pickup`), `{project}`, `{dir}`, `{root}`.
-Dashboard buttons follow the order of `agent.*` lines.
+The dashboard shows a copy-pickup button per `agent.*` line, in their order;
+without `agent.*` lines it shows none (the built-in agents serve the CLI only).
 
 ## Dashboard
 

@@ -1,15 +1,32 @@
 env CLAUDE_CONFIG_DIR=
 env XDG_CONFIG_HOME=
+
+# config init writes the commented defaults once.
+exec baton config path
+stdout 'cfg.config$'
+exec baton config init
+stdout '^wrote '
+grep '^# dashboard.port = 8765' $WORK/cfg/config
+exec baton config init
+stdout 'exists; left as is'
+
 exec baton integrate claude
 stdout 'wrote .*skills.handoff.SKILL.md'
+stdout 'added agent.claude'
+grep '^agent.claude = claude "/pickup \{task\}"$' $WORK/cfg/config
+exec baton integrate claude
+! stdout 'added agent'
 grep 'allowed-tools: Bash\(baton \*\)' $WORK/home/.claude/skills/pickup/SKILL.md
 grep 'baton:begin' $WORK/home/.claude/CLAUDE.md
 exec baton integrate opencode
 exists $WORK/home/.config/opencode/commands/tips.md
+grep '^agent.opencode = ' $WORK/cfg/config
 grep 'baton tips search' $WORK/home/.config/opencode/AGENTS.md
 
 # A foreign command file is kept.
 exec baton integrate opencode --uninstall
+stdout 'removed agent.opencode'
+! grep '^agent.opencode' $WORK/cfg/config
 mkdir $WORK/home/.config/opencode/commands
 cp $WORK/foreign.md $WORK/home/.config/opencode/commands/handoff.md
 ! exec baton integrate opencode
@@ -18,10 +35,28 @@ cmp $WORK/home/.config/opencode/commands/handoff.md $WORK/foreign.md
 exec baton integrate opencode --uninstall
 exists $WORK/home/.config/opencode/commands/handoff.md
 
+# An edited agent line stays; agent.default naming it goes.
 exec baton integrate claude --uninstall
+stdout 'removed agent.claude'
+exec baton integrate claude
+cp $WORK/withdefault $WORK/cfg/config
+exec baton integrate claude --uninstall
+stdout 'removed agent.default'
+! grep agent $WORK/cfg/config
+exec baton integrate claude
+cp $WORK/edited $WORK/cfg/config
+exec baton integrate claude --uninstall
+stdout 'kept agent.claude'
+grep '^agent.claude = my-claude' $WORK/cfg/config
 ! exists $WORK/home/.claude/skills/handoff
 ! exists $WORK/home/.claude/CLAUDE.md
 ! exec baton integrate vim
 stderr 'unknown integration'
+-- withdefault --
+agent.default = claude
+agent.claude = claude "/pickup {task}"
+-- edited --
+agent.default = claude
+agent.claude = my-claude {task}
 -- foreign.md --
 my own handoff command

@@ -43,6 +43,7 @@ func init() {
 		"history":  {cmdHistory, nil, "baton history TASK [N]"},
 		"stale":    {cmdStale, nil, "baton stale FILE|@task"},
 		"template": {cmdTemplate, nil, "baton template"},
+		"config":   {cmdConfig, nil, "baton config init|path"},
 		"version":  {cmdVersion, nil, "baton version"},
 		"tips": {cmdTips, map[string]bool{"error": false, "all": false, "global": false, "title": true, "when": true,
 			"keywords": true, "cites": true, "origin": true, "env": true}, "baton tips search|list|show|new|verified|refuted|supersede|move"},
@@ -70,6 +71,7 @@ usage:
   baton service install|status|restart|uninstall [--dry-run]
   baton auth status|on|off|password|logout-all
   baton integrate claude|opencode [--uninstall]
+  baton config init|path
   baton template
   baton update [--check]
   baton version

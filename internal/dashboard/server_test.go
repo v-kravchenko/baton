@@ -272,3 +272,34 @@ func TestStaticAndPages(t *testing.T) {
 		t.Errorf("login page for local = %d", w.Code)
 	}
 }
+
+func TestEmptyListsAreNotNull(t *testing.T) {
+	e := newEnv(t, false)
+	for _, path := range []string{
+		"/api/projects",
+		"/api/projects/api",
+		"/api/projects/api/tasks/auth",
+		"/api/projects/api/tasks/auth/diff?from=1&to=1",
+		"/api/search?q=nothing-matches",
+	} {
+		w := e.do("GET", path, "", local)
+		if w.Code != 200 || strings.Contains(w.Body.String(), "null") {
+			t.Errorf("%s = %d %s", path, w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestPickupButtonsOnlyForConfiguredAgents(t *testing.T) {
+	e := newEnv(t, false)
+	n := func() int {
+		w := e.do("GET", "/api/projects/api/tasks/auth", "", local)
+		return len(decode(t, w)["pickup"].([]any))
+	}
+	if got := n(); got != 2 {
+		t.Errorf("configured agents: %d buttons", got)
+	}
+	e.srv.Cfg.BuiltinAgents = true
+	if got := n(); got != 0 {
+		t.Errorf("built-in agents: %d buttons", got)
+	}
+}

@@ -36,7 +36,7 @@ func TestLoad(t *testing.T) {
 	if c.Root != filepath.Join("/home/u", "h") || c.Keep != 3 || !c.Auth || c.AuthIdle != 36*time.Hour {
 		t.Errorf("config = %+v", c)
 	}
-	if len(c.Agents) != 2 || c.Agents[0].Name != "a" || c.Agents[1].Name != "b" || c.DefaultAgent != "b" {
+	if len(c.Agents) != 2 || c.Agents[0].Name != "a" || c.Agents[1].Name != "b" || c.DefaultAgent != "b" || c.BuiltinAgents {
 		t.Errorf("agents = %+v default %q", c.Agents, c.DefaultAgent)
 	}
 	if len(c.Warnings) != 1 {
@@ -56,7 +56,7 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Root != "/r" || c.Keep != 10 || c.Port != 8765 || c.DefaultAgent != "claude" || len(c.Agents) != 2 {
+	if c.Root != "/r" || c.Keep != 10 || c.Port != 8765 || c.DefaultAgent != "claude" || len(c.Agents) != 2 || !c.BuiltinAgents {
 		t.Errorf("defaults = %+v", c)
 	}
 }

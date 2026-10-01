@@ -52,6 +52,8 @@ if (-not ($userPath -split ';' | Where-Object { $_ -eq $dir })) {
   Write-Host "added $dir to the user PATH (open a new terminal)"
 }
 
+& (Join-Path $dir 'baton.exe') config init
+
 foreach ($a in ($Integrate -join ',' -split ',' | Where-Object { $_ })) {
   & (Join-Path $dir 'baton.exe') integrate $a
 }

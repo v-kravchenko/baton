@@ -87,7 +87,9 @@ type Config struct {
 	AuthMax      time.Duration
 	DefaultAgent string
 	Agents       []Agent // in config order
-	Warnings     []string
+	// BuiltinAgents: no agent.<name> line, Agents holds DefaultAgents.
+	BuiltinAgents bool
+	Warnings      []string
 }
 
 // DefaultAgents are used when the config defines no agent.<name>.
@@ -172,6 +174,7 @@ func Load(d Dirs) (Config, error) {
 	}
 	if len(c.Agents) == 0 {
 		c.Agents = append(c.Agents, DefaultAgents...)
+		c.BuiltinAgents = true
 	}
 	if c.DefaultAgent == "" {
 		c.DefaultAgent = c.Agents[0].Name
@@ -316,4 +319,94 @@ func SetKey(file, key, value string) error {
 		lines = append(lines, newLine)
 	}
 	return fsutil.WriteFileAtomic(file, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+}
+
+// DefaultFile is what `baton config init` writes: every key commented out at
+// its built-in value, so later defaults still apply. `baton integrate` appends
+// the agent.<name> lines.
+const DefaultFile = `# baton config: flat "key = value"; # starts a comment.
+# Uncomment a line to change it; the values shown are the defaults.
+
+# root = ~/.local/share/baton
+# keep = 10
+
+# dashboard.host = 127.0.0.1
+# dashboard.port = 8765
+# dashboard.public_url =
+# dashboard.auth = off
+# dashboard.auth.idle = 7d
+# dashboard.auth.max = 30d
+
+# Agents for "baton pickup" and the dashboard's copy buttons; "baton integrate
+# NAME" adds its line. Without agent.* lines the CLI falls back to claude and
+# opencode and the dashboard shows no pickup buttons.
+# agent.default = claude
+`
+
+// EnsureFile writes DefaultFile unless file exists. It reports whether it
+// created the file.
+func EnsureFile(file string) (bool, error) {
+	if _, err := os.Stat(file); err == nil {
+		return false, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return false, err
+	}
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		return false, err
+	}
+	return true, fsutil.WriteFileAtomic(file, []byte(DefaultFile), 0o644)
+}
+
+// DefaultAgentTemplate returns the built-in template for name.
+func DefaultAgentTemplate(name string) (string, bool) {
+	for _, a := range DefaultAgents {
+		if a.Name == name {
+			return a.Template, true
+		}
+	}
+	return "", false
+}
+
+// FileValue returns the value of the first line for key in file.
+func FileValue(file, key string) (string, bool, error) {
+	data, err := os.ReadFile(file)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	entries, _ := ParseEntries(data)
+	for _, e := range entries {
+		if e.Key == key {
+			return e.Value, true, nil
+		}
+	}
+	return "", false, nil
+}
+
+// RemoveKey deletes every line for key from file; comments stay. It reports
+// whether a line was removed.
+func RemoveKey(file, key string) (bool, error) {
+	data, err := os.ReadFile(file)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	text := strings.ReplaceAll(string(data), "\r\n", "\n")
+	var keep []string
+	removed := false
+	for _, l := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
+		if k, _, ok := strings.Cut(stripComment(l), "="); ok && strings.TrimSpace(k) == key {
+			removed = true
+			continue
+		}
+		keep = append(keep, l)
+	}
+	if !removed {
+		return false, nil
+	}
+	return true, fsutil.WriteFileAtomic(file, []byte(strings.Join(keep, "\n")+"\n"), 0o644)
 }

@@ -81,6 +81,8 @@ chmod 755 "$tmp/baton"
 mv -f "$tmp/baton" "$dir/baton"
 echo "installed $dir/baton ($("$dir/baton" version))"
 
+"$dir/baton" config init
+
 case ":$PATH:" in
 *":$dir:"*) ;;
 *) echo "note: $dir is not on PATH; add it to your shell profile" ;;

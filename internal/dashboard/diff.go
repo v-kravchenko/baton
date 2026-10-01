@@ -24,7 +24,7 @@ func Diff(a, b string) []DiffLine {
 	for suf < len(x)-pre && suf < len(y)-pre && x[len(x)-1-suf] == y[len(y)-1-suf] {
 		suf++
 	}
-	var out []DiffLine
+	out := []DiffLine{}
 	for _, l := range x[:pre] {
 		out = append(out, DiffLine{" ", l})
 	}

@@ -110,7 +110,7 @@ func (s *Server) apiProjects(w http.ResponseWriter, r *http.Request) (any, error
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Updated.After(out[j].Updated) })
 	global, _ := s.Tips.List(store.Global)
-	return map[string]any{"projects": out, "global_tips": len(global), "root": s.cfg().Root}, nil
+	return map[string]any{"projects": out, "global_tips": len(global), "root": s.cfg().Root, "home": s.Dirs.Home}, nil
 }
 
 func (s *Server) apiProject(w http.ResponseWriter, r *http.Request) (any, error) {
@@ -131,7 +131,7 @@ func (s *Server) apiProject(w http.ResponseWriter, r *http.Request) (any, error)
 		return nil, err
 	}
 	tips.Sort(ts)
-	out := map[string]any{"key": p, "dir": s.paths()[p], "tasks": []taskJSON{}, "archived": []taskJSON{}, "tips": []tipJSON{}, "conflicts": s.Store.Conflicts(p)}
+	out := map[string]any{"key": p, "dir": s.paths()[p], "tasks": []taskJSON{}, "archived": []taskJSON{}, "tips": []tipJSON{}, "conflicts": nonNil(s.Store.Conflicts(p))}
 	var a, b []taskJSON
 	for _, h := range active {
 		a = append(a, taskOf(h))
@@ -160,8 +160,12 @@ type pickupJSON struct {
 	Command string `json:"command"`
 }
 
+// pickups lists a copy button per agent.<name> line; none with built-in agents.
 func (s *Server) pickups(p, t string) []pickupJSON {
-	var out []pickupJSON
+	out := []pickupJSON{}
+	if s.cfg().BuiltinAgents {
+		return out
+	}
 	for _, a := range s.cfg().Agents {
 		cmd := []string{"baton", "pickup", p, "@" + t}
 		if a.Name != s.cfg().DefaultAgent {
@@ -189,7 +193,7 @@ func (s *Server) apiTask(w http.ResponseWriter, r *http.Request) (any, error) {
 	for _, x := range hist {
 		hj = append(hj, taskOf(x))
 	}
-	out := map[string]any{"project": p, "handoff": taskOf(h), "body": h.Body, "history": hj, "forks": s.Store.Forks(p, t), "pickup": s.pickups(p, t)}
+	out := map[string]any{"project": p, "handoff": taskOf(h), "body": h.Body, "history": hj, "forks": nonNil(s.Store.Forks(p, t)), "pickup": s.pickups(p, t)}
 	if dir := s.paths()[p]; dir != "" {
 		if st, err := os.Stat(dir); err == nil && st.IsDir() {
 			stale := gitinfo.Stale(dir, h.Branch, h.Commit)
@@ -421,4 +425,12 @@ func snippet(body string, words []string) string {
 		}
 	}
 	return ""
+}
+
+// nonNil keeps empty lists as [] in JSON instead of null.
+func nonNil[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
 }

@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.1.1
+
+- Dashboard: redesigned after claude-handoff: project sidebar, project cards
+  with fork trees, side panel for tasks and tips, light/dark theme switch.
+- Dashboard: pickup buttons only for `agent.*` lines in the config.
+- Dashboard: empty lists no longer break the project page (`null` in JSON).
+- `baton config init|path`; the install scripts write a commented default
+  config.
+- `baton integrate NAME` adds `agent.NAME` to the config; `--uninstall`
+  removes it unless edited.
+
+## 0.1.0
 
 First release.
 
