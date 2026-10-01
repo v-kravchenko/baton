@@ -46,7 +46,7 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 // syncDir persists the rename; best effort (not supported on Windows).
 func syncDir(dir string) {
 	if d, err := os.Open(dir); err == nil {
-		d.Sync()
+		_ = d.Sync()
 		d.Close()
 	}
 }
