@@ -1,7 +1,7 @@
 # baton
 
 Go CLI (one static binary) that stores agent session handoffs as Markdown.
-README.md is the specification; PLAN.md holds the original design decisions.
+README.md is the specification.
 
 ## Layout
 
