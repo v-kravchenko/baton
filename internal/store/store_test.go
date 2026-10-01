@@ -28,13 +28,21 @@ func TestProjectKey(t *testing.T) {
 	if _, err := ProjectKey("/"); err == nil {
 		t.Error("/ accepted")
 	}
+	if _, err := ProjectKey("/x/CON"); err == nil {
+		t.Error("con accepted")
+	}
 }
 
 func TestTaskName(t *testing.T) {
+	for _, ok := range []string{"@Api-Refactor", "console", "com10", "lpt"} {
+		if _, err := TaskName(ok); err != nil {
+			t.Errorf("%q: %v", ok, err)
+		}
+	}
 	if n, err := TaskName("@Api-Refactor"); err != nil || n != "api-refactor" {
 		t.Errorf("%q %v", n, err)
 	}
-	for _, bad := range []string{"", "a/b", "../x", ".x", "a b"} {
+	for _, bad := range []string{"", "a/b", "../x", ".x", "a b", "nul", "com1", "aux.x"} {
 		if _, err := TaskName(bad); err == nil {
 			t.Errorf("%q accepted", bad)
 		}

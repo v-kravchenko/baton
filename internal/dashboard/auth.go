@@ -45,7 +45,12 @@ type Auth struct {
 type failure struct {
 	count int
 	until time.Time
+	last  time.Time
 }
+
+// maxFailures bounds the failure table; beyond it, entries idle for lockMax
+// are dropped so many client addresses cannot grow it without limit.
+const maxFailures = 1024
 
 type session struct {
 	Created time.Time `json:"created"`
@@ -147,18 +152,27 @@ func (a *Auth) RecordFailure(client string) {
 	if a.failures == nil {
 		a.failures = map[string]*failure{}
 	}
+	now := a.now()
+	if len(a.failures) >= maxFailures {
+		for k, f := range a.failures {
+			if now.Sub(f.last) > lockMax {
+				delete(a.failures, k)
+			}
+		}
+	}
 	f := a.failures[client]
 	if f == nil {
 		f = &failure{}
 		a.failures[client] = f
 	}
 	f.count++
+	f.last = now
 	if f.count >= lockAfter {
 		d := lockBase << (f.count - lockAfter)
 		if d > lockMax || d <= 0 {
 			d = lockMax
 		}
-		f.until = a.now().Add(d)
+		f.until = now.Add(d)
 	}
 }
 

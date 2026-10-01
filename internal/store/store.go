@@ -34,6 +34,9 @@ func ProjectKey(dir string) (string, error) {
 	if key == Global {
 		return "", fmt.Errorf("directory name %q is reserved by baton; rename the directory", base)
 	}
+	if winReserved(key) {
+		return "", fmt.Errorf("directory name %q is a reserved device name on Windows; rename the directory", base)
+	}
 	return key, nil
 }
 
@@ -58,7 +61,23 @@ func TaskName(s string) (string, error) {
 	if s[0] == '.' || s[0] == '-' || sanitize(s) != s || strings.Contains(s, "..") {
 		return "", fmt.Errorf("invalid task name %q: use a-z, 0-9, '.', '_', '-'", s)
 	}
+	if winReserved(s) {
+		return "", fmt.Errorf("invalid task name %q: a reserved device name on Windows", s)
+	}
 	return s, nil
+}
+
+// winReserved reports names Windows treats as devices with any extension
+// (con, con.md, com1, ...); they are refused on every OS so data syncs.
+func winReserved(s string) bool {
+	if i := strings.IndexByte(s, '.'); i >= 0 {
+		s = s[:i]
+	}
+	switch s {
+	case "con", "prn", "aux", "nul":
+		return true
+	}
+	return len(s) == 4 && (strings.HasPrefix(s, "com") || strings.HasPrefix(s, "lpt")) && s[3] >= '0' && s[3] <= '9'
 }
 
 // Store is a handoff root.

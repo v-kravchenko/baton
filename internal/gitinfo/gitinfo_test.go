@@ -51,6 +51,13 @@ func TestStale(t *testing.T) {
 	if s.NewCommits != 1 || len(s.Log) != 1 || s.Dirty != 1 || s.ChangedFiles != 1 || s.Diverged {
 		t.Errorf("report = %+v", s)
 	}
+	out := filepath.Join(t.TempDir(), "pwned")
+	if s := Stale(dir, "main", "--output="+out); !s.CommitMissing {
+		t.Errorf("option as commit = %+v", s)
+	}
+	if _, err := os.Stat(out); err == nil {
+		t.Error("git ran the commit value as an option")
+	}
 	if s := Stale(dir, "dev", "deadbee"); !s.CommitMissing || !s.BranchChanged {
 		t.Errorf("missing report = %+v", s)
 	}

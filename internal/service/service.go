@@ -253,7 +253,7 @@ RestartSec=3
 
 [Install]
 WantedBy=default.target
-`, systemdQuote(s.Exe), env.String())
+`, systemdQuote(strings.ReplaceAll(s.Exe, "$", "$$")), env.String())
 		return Plan{
 			Files:    map[string]string{s.unitPath(): unit},
 			Commands: [][]string{sc("daemon-reload"), sc("enable", "--now", unitName), sc("restart", unitName)},
@@ -273,7 +273,10 @@ WantedBy=default.target
 	return Plan{}, fmt.Errorf("unknown service action %q", action)
 }
 
+// systemdQuote quotes a unit-file value and escapes % specifiers. ExecStart
+// also expands $VAR, so callers escape $ there.
 func systemdQuote(s string) string {
+	s = strings.ReplaceAll(s, "%", "%%")
 	if !strings.ContainsAny(s, " \t\"\\") {
 		return s
 	}

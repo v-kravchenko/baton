@@ -15,7 +15,9 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 		return err
 	}
 	tmp := filepath.Join(dir, "."+filepath.Base(path)+".tmp")
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	// A temp file left by a crash keeps its mode under O_CREATE; start fresh.
+	os.Remove(tmp)
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
 	if err != nil {
 		return err
 	}
@@ -37,7 +39,16 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 		os.Remove(tmp)
 		return err
 	}
+	syncDir(dir)
 	return nil
+}
+
+// syncDir persists the rename; best effort (not supported on Windows).
+func syncDir(dir string) {
+	if d, err := os.Open(dir); err == nil {
+		d.Sync()
+		d.Close()
+	}
 }
 
 // Rename renames, retrying briefly where another process may hold the file

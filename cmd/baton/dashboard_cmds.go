@@ -147,7 +147,7 @@ func (app *App) serveDashboard(host string, port int, url string, a *args) error
 	srv := dashboard.New(app.Cfg, app.Dirs, app.store(), app.tipStore(), buildVersion())
 	dirs := app.Dirs
 	srv.LoadConfig = func() (config.Config, error) { return config.Load(dirs) }
-	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
+	hs := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: time.Minute, IdleTimeout: 2 * time.Minute}
 
 	if !isLoopbackHost(host) && (!app.Cfg.Auth || !srv.Auth.HasPassword()) {
 		app.warnf("listening on %s with auth off: remote clients get 403 until `baton auth password` and `baton auth on`", host)

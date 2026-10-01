@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.1.2
+
+- Dashboard: Markdown with `**bold**` or `*em*` no longer hangs the page
+  (tip and handoff panels stayed at "Loading…").
+- Dashboard: bare tip dates show "today"/"Nd ago" instead of hours since UTC
+  midnight.
+- Dashboard: `*em*` inside `**bold**` renders.
+- Dashboard: tip ages use the file time ("5m ago"), like handoffs.
+- Dashboard: every history row has View and Diff (Diff is disabled on the
+  first version).
+- Dashboard: fixed a data race on allowed host names during config reload
+  (could crash the server); CSRF token compared in constant time; read and
+  write timeouts; the login-failure table no longer grows without bound.
+- Windows: `baton pickup` refuses to pass arguments with cmd.exe
+  metacharacters to a `.cmd`/`.bat` agent shim (BatBadBut).
+- systemd unit: `%` and `$` in paths are escaped.
+- A `commit` value from a handoff is used with git only if it looks like a
+  hash.
+- Task names and project keys that are Windows device names (`con`, `nul`,
+  `com1`, ...) are refused.
+- Atomic writes sync the directory after the rename and replace a stale
+  temp file.
+
 ## 0.1.1
 
 - Dashboard: redesigned after claude-handoff: project sidebar, project cards

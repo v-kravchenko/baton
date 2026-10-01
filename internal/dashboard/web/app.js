@@ -44,6 +44,14 @@
   }
 
   function age(iso) {
+    // A bare date (tip source) has no time: count whole local days.
+    const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
+    if (day) {
+      const dt = new Date(+day[1], day[2] - 1, +day[3]);
+      dt.setFullYear(+day[1]);
+      const d = Math.round((new Date().setHours(0, 0, 0, 0) - dt) / 86400000);
+      return d <= 0 ? "today" : d === 1 ? "yesterday" : d < 14 ? d + "d ago" : dt.toLocaleDateString();
+    }
     const t = Date.parse(iso);
     if (isNaN(t) || t <= 0) return "";
     const s = Math.max(0, (Date.now() - t) / 1000);
@@ -397,19 +405,22 @@
             panel.scrollIntoView({ block: "nearest" });
           }).catch(failed(panel));
         };
-        if (n) {
-          const open = el("button", "", "View");
-          open.addEventListener("click", () => toggle(open, async () =>
-            window.renderMarkdown((await api(taskPath(t) + "/history/" + n)).body)));
-          btns.appendChild(open);
-        }
+        // Every row has View and Diff so the buttons line up; the first
+        // version has nothing to diff against.
+        const open = el("button", "", "View");
+        open.addEventListener("click", () => toggle(open, async () =>
+          window.renderMarkdown(n ? (await api(taskPath(t) + "/history/" + n)).body : d.body)));
+        btns.appendChild(open);
+        const b = el("button", "", "Diff");
         if (n + 1 < rows.length) {
-          const b = el("button", "", "Diff");
           b.title = "changes since the previous version";
           b.addEventListener("click", () => toggle(b, async () =>
             diffView((await api(taskPath(t) + `/diff?from=${n + 1}&to=${n}`)).lines)));
-          btns.appendChild(b);
+        } else {
+          b.disabled = true;
+          b.title = "first version: nothing to compare with";
         }
+        btns.appendChild(b);
         row.appendChild(btns);
         list.appendChild(row);
         list.appendChild(panel);
@@ -485,12 +496,12 @@
     if (tip.origin === "web") cs.appendChild(chip("from web", "", "learned from web pages, issues or foreign code"));
     return cs;
   }
-  const tipDate = (tip) => (tip.source && tip.source[2]) || "";
+  const tipDate = (tip) => tip.updated || (tip.source && tip.source[2]) || "";
   const tipPath = (tip) => `/api/tips/${enc(tip.scope)}/${enc(tip.id)}`;
   function tipCard(tip, where, h) {
     const c = el("div", "item" + (tip.status === "active" || tip.status === "verified" ? "" : " dim"));
     c.dataset.key = "p:" + tipKey(tip);
-    const [head] = cardHead(tip.title, tip.id, tipChips(tip), tipDate(tip), tipDate(tip) && "saved " + tipDate(tip), [arrow()]);
+    const [head] = cardHead(tip.title, tip.id, tipChips(tip), tipDate(tip), tipDate(tip) && "saved " + when(tipDate(tip)), [arrow()]);
     c.appendChild(head);
     opener(head, () => openPanel(c.dataset.key, h, where, (body) => tipPanel(tip, body)));
     return c;

@@ -19,6 +19,13 @@ func TestPlans(t *testing.T) {
 	if !strings.Contains(unit, `ExecStart="/opt/my tools/baton" dashboard --no-open`) || !strings.Contains(unit, "Environment=BATON_ROOT=/r") {
 		t.Errorf("unit = %s", unit)
 	}
+	q := s
+	q.Exe, q.Env = "/opt/100%$x/baton", []string{"BATON_ROOT=/r/50%$y"}
+	p, _ = Action(q, "install")
+	unit = p.Files[filepath.Join("/home/u", ".config", "systemd", "user", "baton.service")]
+	if !strings.Contains(unit, "ExecStart=/opt/100%%$$x/baton ") || !strings.Contains(unit, "Environment=BATON_ROOT=/r/50%%$y\n") {
+		t.Errorf("escaped unit = %s", unit)
+	}
 	s.GOOS = "darwin"
 	p, _ = Action(s, "install")
 	if c := p.Commands[1]; strings.Join(c, " ") != "launchctl bootstrap gui/501 "+filepath.Join("/home/u", "Library", "LaunchAgents", "com.baton.dashboard.plist") {

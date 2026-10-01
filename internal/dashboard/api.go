@@ -41,12 +41,17 @@ type tipJSON struct {
 	Source   []string `json:"source,omitempty"`
 	Env      []string `json:"env,omitempty"`
 	Cites    []string `json:"cites,omitempty"`
+	Updated  string   `json:"updated,omitempty"`
 	Body     string   `json:"body,omitempty"`
 }
 
 func tipOf(t *tips.Tip, body bool) tipJSON {
 	j := tipJSON{ID: t.ID, Scope: t.Scope, Title: t.Title, When: t.When, Keywords: t.Keywords, Status: t.Status,
 		Origin: t.Origin, Source: t.Source, Env: t.Env, Cites: t.Cites}
+	// Tips carry only a date; the file time gives "5m ago" like handoffs.
+	if fi, err := os.Stat(t.Path); err == nil {
+		j.Updated = fi.ModTime().Format(time.RFC3339)
+	}
 	if body {
 		j.Body = t.Body
 	}

@@ -4,6 +4,7 @@
 package dashboard
 
 import (
+	"crypto/subtle"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -154,6 +155,8 @@ func (s *Server) hostAllowed(host string) bool {
 	if net.ParseIP(name) != nil {
 		return true
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.hostnames[name]
 }
 
@@ -299,7 +302,7 @@ func (s *Server) protected(h func(http.ResponseWriter, *http.Request) (any, erro
 		}
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			got := r.Header.Get(csrfHeader)
-			if got == "" || got != csrf {
+			if got == "" || subtle.ConstantTimeCompare([]byte(got), []byte(csrf)) != 1 {
 				writeErr(w, errStatus(http.StatusForbidden, "missing or invalid CSRF token"))
 				return
 			}

@@ -9,13 +9,13 @@ window.renderMarkdown = (function () {
     return n;
   }
 
-  const inlineRe = /(`+)([\s\S]*?)\1|\*\*([^*]+)\*\*|__([^_]+)__|\*([^*\s][^*]*)\*|\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])/g;
+  const inlineRe = /(`+)([\s\S]*?)\1|\*\*((?:[^*]|\*(?!\*))+)\*\*|__([^_]+)__|\*([^*\s][^*]*)\*|\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])/g;
 
   function inline(parent, text) {
+    // matchAll iterates a copy of the regex: the recursion for bold/em
+    // would otherwise move a shared lastIndex and loop forever.
     let last = 0;
-    let m;
-    inlineRe.lastIndex = 0;
-    while ((m = inlineRe.exec(text)) !== null) {
+    for (const m of text.matchAll(inlineRe)) {
       if (m.index > last) parent.appendChild(document.createTextNode(text.slice(last, m.index)));
       if (m[1]) parent.appendChild(el("code", null, m[2]));
       else if (m[3] || m[4]) {
@@ -28,7 +28,7 @@ window.renderMarkdown = (function () {
         parent.appendChild(i);
       } else if (m[6]) parent.appendChild(link(m[6], m[7]));
       else if (m[8]) parent.appendChild(link(m[8], m[8]));
-      last = inlineRe.lastIndex;
+      last = m.index + m[0].length;
     }
     if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
   }

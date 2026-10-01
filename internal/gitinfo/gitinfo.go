@@ -82,6 +82,12 @@ func Stale(dir, branch, commit string) Staleness {
 	if commit == "" || cur.Commit == "" {
 		return s
 	}
+	// The commit comes from a synced file; a value like "--output=..." would
+	// be read by git as an option.
+	if !isHash(commit) {
+		s.CommitMissing = true
+		return s
+	}
 	if _, err := git(dir, "rev-parse", "--verify", "--quiet", commit+"^{commit}"); err != nil {
 		s.CommitMissing = true
 		return s
@@ -156,4 +162,17 @@ func nonEmpty(s, def string) string {
 		return def
 	}
 	return s
+}
+
+// isHash reports whether s looks like an abbreviated or full commit hash.
+func isHash(s string) bool {
+	if len(s) < 4 || len(s) > 64 {
+		return false
+	}
+	for _, r := range s {
+		if !(r >= '0' && r <= '9' || r >= 'a' && r <= 'f' || r >= 'A' && r <= 'F') {
+			return false
+		}
+	}
+	return true
 }
