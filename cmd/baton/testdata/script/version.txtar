@@ -1,0 +1,8 @@
+exec baton version
+stdout '^baton dev '
+exec baton version --json
+stdout '"version": "dev"'
+! exec baton nope
+stderr 'unknown command'
+exec baton help
+stdout 'usage:'

@@ -1,0 +1,104 @@
+:root {
+  --bg: #f7f7f5;
+  --fg: #1d1d1b;
+  --muted: #6b6b66;
+  --card: #fff;
+  --border: #deded8;
+  --accent: #2f5fd0;
+  --warn: #b26b00;
+  --bad: #b3261e;
+  --good: #1e7b3c;
+  --code: #f0f0ec;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615;
+    --fg: #e8e8e3;
+    --muted: #9a9a92;
+    --card: #1f1f1d;
+    --border: #34342f;
+    --accent: #7ea2ff;
+    --warn: #e0a040;
+    --bad: #ff7b72;
+    --good: #5fcf7f;
+    --code: #2a2a27;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
+code { background: var(--code); padding: 0 0.3em; border-radius: 4px; }
+pre { background: var(--code); padding: 0.75em; border-radius: 6px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+header {
+  display: flex; gap: 1em; align-items: center;
+  padding: 0.6em 1.2em; border-bottom: 1px solid var(--border);
+  background: var(--card); position: sticky; top: 0; z-index: 1;
+}
+.brand { font-weight: 700; font-size: 1.15em; color: var(--fg); }
+#search { flex: 1; max-width: 32em; }
+input[type=search], input[type=password] {
+  width: 100%; padding: 0.45em 0.7em; font: inherit; color: inherit;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+}
+main { padding: 1.2em; max-width: 72em; margin: 0 auto; }
+h1 { font-size: 1.5em; margin: 0.3em 0; }
+h2 { font-size: 1.1em; margin: 1.4em 0 0.5em; }
+.muted { color: var(--muted); }
+.error { color: var(--bad); }
+.grid { display: grid; gap: 1em; grid-template-columns: repeat(auto-fill, minmax(20em, 1fr)); }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 0.9em 1.1em; }
+.card h2 { margin: 0 0 0.3em; }
+.card.warn { border-color: var(--warn); }
+.meta { color: var(--muted); font-size: 0.92em; display: flex; flex-wrap: wrap; gap: 0.5em; align-items: center; }
+p.meta { display: block; }
+ul.tasks, ul.tips, ol.history { padding-left: 1.2em; margin: 0.4em 0; }
+ul.tasks li, ul.tips li, ol.history li { margin: 0.2em 0; }
+.title { font-weight: 500; }
+.badge {
+  display: inline-block; font-size: 0.78em; padding: 0 0.5em; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--muted); vertical-align: middle;
+}
+.badge.warn { color: var(--warn); border-color: var(--warn); }
+.badge.verified { color: var(--good); border-color: var(--good); }
+.badge.refuted { color: var(--bad); border-color: var(--bad); }
+.crumbs { font-size: 0.9em; color: var(--muted); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 1em; justify-content: space-between; margin: 0.8em 0; }
+.pickup, .actions { display: flex; flex-wrap: wrap; gap: 0.5em; }
+button {
+  font: inherit; padding: 0.4em 0.9em; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--accent); background: var(--accent); color: #fff;
+}
+button:disabled { opacity: 0.6; cursor: default; }
+button.ghost { background: transparent; color: var(--accent); }
+button.small { padding: 0.05em 0.5em; font-size: 0.85em; margin-left: 0.3em; }
+button.danger { background: transparent; color: var(--bad); border-color: var(--bad); }
+button.pick { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.9em; }
+.stale pre { margin: 0.4em 0 0; }
+.body { overflow-wrap: anywhere; }
+.md h2, .md h3 { margin-top: 1em; }
+.md > :first-child { margin-top: 0; }
+pre.diff span { display: block; white-space: pre-wrap; }
+pre.diff .add { color: var(--good); }
+pre.diff .del { color: var(--bad); }
+dl.kv { display: grid; grid-template-columns: max-content 1fr; gap: 0.2em 1em; }
+dl.kv dt { color: var(--muted); }
+dl.kv dd { margin: 0; }
+.snippet { font-size: 0.9em; }
+#toast {
+  position: fixed; bottom: 1em; left: 50%; transform: translateX(-50%);
+  background: var(--fg); color: var(--bg); padding: 0.5em 1em; border-radius: 6px; max-width: 90vw;
+}
+#toast.error { background: var(--bad); color: #fff; }
+.offscreen { position: fixed; left: -9999px; }
+body.login { display: grid; place-items: center; min-height: 100vh; }
+#login { width: min(22em, 90vw); display: grid; gap: 0.6em; }
+#login h1 { margin: 0 0 0.3em; }

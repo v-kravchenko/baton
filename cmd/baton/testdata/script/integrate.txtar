@@ -1,0 +1,27 @@
+env CLAUDE_CONFIG_DIR=
+env XDG_CONFIG_HOME=
+exec baton integrate claude
+stdout 'wrote .*skills.handoff.SKILL.md'
+grep 'allowed-tools: Bash\(baton \*\)' $WORK/home/.claude/skills/pickup/SKILL.md
+grep 'baton:begin' $WORK/home/.claude/CLAUDE.md
+exec baton integrate opencode
+exists $WORK/home/.config/opencode/commands/tips.md
+grep 'baton tips search' $WORK/home/.config/opencode/AGENTS.md
+
+# A foreign command file is kept.
+exec baton integrate opencode --uninstall
+mkdir $WORK/home/.config/opencode/commands
+cp $WORK/foreign.md $WORK/home/.config/opencode/commands/handoff.md
+! exec baton integrate opencode
+stderr 'not written by baton'
+cmp $WORK/home/.config/opencode/commands/handoff.md $WORK/foreign.md
+exec baton integrate opencode --uninstall
+exists $WORK/home/.config/opencode/commands/handoff.md
+
+exec baton integrate claude --uninstall
+! exists $WORK/home/.claude/skills/handoff
+! exists $WORK/home/.claude/CLAUDE.md
+! exec baton integrate vim
+stderr 'unknown integration'
+-- foreign.md --
+my own handoff command

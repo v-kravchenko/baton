@@ -1,0 +1,68 @@
+mkdir $WORK/src/api
+cd $WORK/src/api
+
+exec baton tips search flock
+stdout 'no matching tips'
+
+stdin $WORK/tip1.md
+exec baton tips new --keywords 'flock, nfs'
+stdout 'saved tip flock-hangs-on-nfs \(api\)'
+grep 'status: active' $WORK/root/api/tips/flock-hangs-on-nfs.md
+grep 'source: \[api, -, 2026-10-01\]' $WORK/root/api/tips/flock-hangs-on-nfs.md
+
+stdin $WORK/tip2.md
+exec baton tips new --global --title 'Quote args for claude.cmd' --when 'pickup on windows' --origin failure
+stderr 'missing Why:'
+exists $WORK/root/global/tips/quote-args-for-claude-cmd.md
+
+exec baton tips search locking
+stdout '^flock-hangs-on-nfs api: Flock hangs on NFS'
+exec baton tips search --json windows claude
+stdout '"id": "quote-args-for-claude-cmd"'
+exec baton tips search --error 'fatal: flock failed: resource temporarily unavailable on nfs mount 0x1f2e3d4c'
+stdout flock-hangs-on-nfs
+
+exec baton tips show flock-hangs-on-nfs
+stdout 'Verify: mount a share'
+
+# Statuses.
+exec baton tips verified flock-hangs-on-nfs
+exec baton tips list
+stdout 'flock-hangs-on-nfs \[verified\]'
+exec baton tips refuted quote-args-for-claude-cmd fixed in Go 1.23
+exec baton tips search claude
+stdout 'no matching tips'
+exec baton tips search --all claude
+stdout '\[refuted\]'
+exec baton tips supersede quote-args-for-claude-cmd flock-hangs-on-nfs
+grep 'superseded_by: flock-hangs-on-nfs' $WORK/root/global/tips/quote-args-for-claude-cmd.md
+
+# Move to global and back.
+exec baton tips move flock-hangs-on-nfs global
+exists $WORK/root/global/tips/flock-hangs-on-nfs.md
+exec baton tips move flock-hangs-on-nfs project
+exists $WORK/root/api/tips/flock-hangs-on-nfs.md
+
+# Tips matching the handoff show up in show.
+stdin $WORK/handoff.md
+exec baton save @locks --title 'NFS locking'
+exec baton show @locks
+stdout 'tips that may apply'
+stdout 'flock-hangs-on-nfs: Flock hangs on NFS'
+
+-- tip1.md --
+---
+title: Flock hangs on NFS
+when: locking files under a network mount
+---
+Tip: put lock files in the local state dir.
+Why: NFS v3 does not support flock.
+Verify: mount a share and run two saves at once.
+-- tip2.md --
+Tip: test with real claude.cmd.
+Verify: run pickup on Windows.
+-- handoff.md --
+## Goal
+x
+## Gotchas
+flock waits forever

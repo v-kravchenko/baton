@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>baton</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:,">
+</head>
+<body>
+<header>
+  <a href="#/" class="brand">baton</a>
+  <form id="search" role="search">
+    <input id="q" type="search" placeholder="Search tasks and tips" autocomplete="off">
+  </form>
+  <button id="logout" class="ghost" hidden>Log out</button>
+</header>
+<main id="view"><p class="muted">Loading…</p></main>
+<div id="toast" role="status" hidden></div>
+<script src="/static/md.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

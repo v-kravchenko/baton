@@ -1,0 +1,56 @@
+# Outside any project: pickup without PROJECT fails with a hint.
+mkdir $WORK/home
+cd $WORK/home
+! exec baton pickup
+stderr 'cd into the project directory'
+
+# Save in the project dir records paths.
+mkdir $WORK/src/api
+cd $WORK/src/api
+stdin $WORK/body.md
+exec baton save @auth
+exec baton path list
+stdout '^api=.*api$'
+
+# From elsewhere, pickup by project uses paths and the default agent.
+cd $WORK/home
+exec baton pickup api @auth --print
+stdout '^cd .*api && claude ''/pickup @auth''$'
+exec baton pickup api --print --agent opencode
+stdout 'opencode --prompt /pickup$'
+exec baton pickup api --print --json
+stdout '"argv": \['
+! exec baton pickup api --agent nope --print
+stderr 'unknown agent "nope"'
+! exec baton pickup other --print
+stderr 'baton path set other DIR'
+
+# Missing directory: cwd with the same key takes over.
+mv $WORK/src/api $WORK/src2-api
+mkdir $WORK/elsewhere/api
+cd $WORK/elsewhere/api
+exec baton pickup api --print
+stdout 'elsewhere.api'
+exec baton path list
+stdout 'elsewhere.api'
+
+# path set / prune.
+exec baton path set web $WORK/src2-api
+stderr 'gives key "src2-api"'
+rm $WORK/src2-api
+exec baton path prune
+stdout 'removed web='
+
+# Custom agents from config; real exec on Unix.
+cp $WORK/config $WORK/cfg/config
+exec baton pickup api @auth --print
+stdout 'echo picked @auth api'
+[!windows] exec baton pickup api @auth
+[!windows] stdout '^picked @auth api$'
+
+-- body.md --
+## Goal
+x
+-- config --
+agent.default = echo
+agent.echo = echo picked {task} {project}

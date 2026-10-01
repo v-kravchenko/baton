@@ -1,0 +1,110 @@
+# Empty project: report states, exit 0.
+mkdir $WORK/src/MyApp
+cd $WORK/src/MyApp
+exec baton show
+stdout 'STATE: NO HANDOFF'
+exec baton tasks
+stdout 'project myapp: no active tasks'
+
+# First save without @task goes to @main and records paths.
+stdin $WORK/body.md
+exec baton save --title 'First try'
+stdout 'saved myapp/@main'
+! stderr 'missing sections'
+exists $WORK/root/myapp/tasks/main.md
+grep 'title: "First try"' $WORK/root/myapp/tasks/main.md
+grep 'created: 2026-10-01T10:15:00\+03:00' $WORK/root/myapp/tasks/main.md
+! grep 'branch:' $WORK/root/myapp/tasks/main.md
+grep '^myapp=.*MyApp$' $WORK/cfg/paths
+
+# Single task: show picks it.
+exec baton show
+stdout '^@main: First try$'
+stdout '## Goal'
+
+# Second save rotates; title carried over; missing sections warned.
+stdin $WORK/short.md
+exec baton save @main
+stderr 'missing sections: State, Decisions'
+exists $WORK/root/myapp/history/main/20261001T071500Z.md
+exec baton history main
+stdout '^1  2026-10-01 10:15  First try'
+exec baton history main 1
+stdout 'Refresh tokens'
+
+# Fork, then choose-task state.
+stdin $WORK/short.md
+exec baton save @auth --from main --title Auth
+exec baton show
+stdout 'STATE: CHOOSE TASK'
+stdout '@auth: Auth'
+exec baton show @main
+stdout 'forks: @auth'
+exec baton show @auth
+stdout 'from: @main'
+! exec baton save
+stderr 'several tasks'
+
+# Unknown task, done, archived, restore.
+exec baton show @nope
+stdout 'STATE: NO TASK'
+exec baton done auth
+exec baton show @auth
+stdout 'STATE: ARCHIVED'
+exec baton tasks
+stdout 'archived: @auth'
+! exec baton done auth
+stderr 'already archived'
+exec baton restore @auth
+exec baton show --json @auth
+stdout '"state": "OK"'
+stdout '"from": "main"'
+
+# Rename updates forks and moves history.
+exec baton rename main core
+exists $WORK/root/myapp/history/core
+exec baton show @auth
+stdout 'from: @core'
+
+# Sync conflicts are reported.
+cp $WORK/short.md $WORK/root/myapp/tasks/auth.sync-conflict-20261001-101010-ABCDEFG.md
+exec baton tasks
+stdout 'warning: sync conflict'
+
+# show FILE and template.
+exec baton show $WORK/root/myapp/tasks/core.md
+stdout '@core: First try'
+exec baton template
+stdout '## User preferences'
+
+# Reserved name and bad task names.
+mkdir $WORK/src/global
+cd $WORK/src/global
+! exec baton tasks
+stderr 'reserved'
+cd $WORK/src/MyApp
+! exec baton save @a/b
+stderr 'invalid task name'
+
+-- body.md --
+# Refresh tokens
+
+## Goal
+g
+## State
+s
+## Decisions
+d
+## Key context
+k
+## Gotchas
+none
+## User preferences
+p
+## Next steps
+n
+## Verify
+v
+-- short.md --
+## Goal
+short

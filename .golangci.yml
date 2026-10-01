@@ -1,0 +1,23 @@
+version: "2"
+linters:
+  settings:
+    errcheck:
+      # Best-effort cleanup and terminal/HTTP output: failures are either
+      # harmless or already reported by the main error path.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - os.Remove
+        - (*os.File).Close
+        - (io.Closer).Close
+        - (net.Conn).Close
+        - (*os.Process).Release
+        - (*os/exec.Cmd).Wait
+        - (net/http.ResponseWriter).Write
+        - (*encoding/json.Encoder).Encode
+        - syscall.Flock
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [errcheck]
