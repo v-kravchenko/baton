@@ -60,7 +60,7 @@ func TestDownloadAndReplace(t *testing.T) {
 }
 
 func TestAssetName(t *testing.T) {
-	for _, c := range [][3]string{{"linux", "arm", "baton_linux_armv7"}, {"windows", "arm64", "baton_windows_arm64.exe"}, {"darwin", "amd64", "baton_darwin_amd64"}} {
+	for _, c := range [][3]string{{"linux", "arm", "baton_linux_armv7"}, {"windows", "arm64", "baton_windows_arm64.exe"}, {"darwin", "amd64", "baton_darwin_amd64"}, {"android", "arm64", "baton_linux_arm64"}} {
 		if got := AssetName(c[0], c[1]); got != c[2] {
 			t.Errorf("%v = %s", c, got)
 		}

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `baton update` from a baton built on Termux (`android/arm64`) downloads
+  the `linux_arm64` release instead of failing.
+
 ## 0.1.7
 
 - `obsidian.vault` and `obsidian.folder` (default `baton`) put the root into

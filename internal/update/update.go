@@ -33,7 +33,11 @@ func APIBase() string {
 }
 
 // AssetName is the release file for goos/goarch (see .goreleaser.yaml).
+// Android (a baton built on Termux) runs the static linux binary.
 func AssetName(goos, goarch string) string {
+	if goos == "android" {
+		goos = "linux"
+	}
 	name := "baton_" + goos + "_" + goarch
 	if goarch == "arm" {
 		name += "v7"
