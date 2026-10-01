@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.7
 
 - `obsidian.vault` and `obsidian.folder` (default `baton`) put the root into
   an Obsidian vault as `<vault>/<folder>`; setting both `root` and
