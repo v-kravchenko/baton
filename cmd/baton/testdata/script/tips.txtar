@@ -8,7 +8,7 @@ stdin $WORK/tip1.md
 exec baton tips new --keywords 'flock, nfs'
 stdout 'saved tip flock-hangs-on-nfs \(api\)'
 grep 'status: active' $WORK/root/api/tips/flock-hangs-on-nfs.md
-grep 'source: \[api, -, 2026-10-01\]' $WORK/root/api/tips/flock-hangs-on-nfs.md
+grep 'source: \[api, "-", 2026-10-01\]' $WORK/root/api/tips/flock-hangs-on-nfs.md
 
 stdin $WORK/tip2.md
 exec baton tips new --global --title 'Quote args for claude.cmd' --when 'pickup on windows' --origin failure

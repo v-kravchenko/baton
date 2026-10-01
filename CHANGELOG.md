@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Frontmatter edited in Obsidian keeps working: block lists (`- a` lines)
+  are read, and fields baton does not know (`tags`, `aliases`, nested maps,
+  `|` blocks) are kept as written when `save` or a tip status change
+  rewrites the file. Before, a block list failed to parse and `save` dropped
+  foreign fields.
+- Values starting with a YAML indicator (`{width=`, `-Dscreen`, the `-`
+  placeholder in `source`) are written quoted, so Obsidian can read the
+  properties of every file baton writes.
+
 ## 0.1.6
 
 - `baton pickup PROJECT @task "PROMPT"` passes extra instructions to the

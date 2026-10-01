@@ -321,7 +321,11 @@ func (s *Store) Save(p, t string, in SaveInput) (*SaveResult, error) {
 		return nil, fmt.Errorf("task %q cannot be forked from itself", t)
 	}
 
+	// Fields added by other tools (Obsidian tags, aliases, ...) are kept.
 	fm := &Frontmatter{}
+	if prev != nil {
+		fm = prev.FM.Clone()
+	}
 	fm.Set("title", title)
 	fm.Set("created", s.now().Format(time.RFC3339))
 	fm.Set("branch", in.Branch)

@@ -1,6 +1,7 @@
 package tips
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -94,5 +95,33 @@ func TestNewSearchStatuses(t *testing.T) {
 	}
 	if _, err := s.Get(a.ID, "p"); err == nil {
 		t.Error("moved tip still in project")
+	}
+}
+
+func TestObsidianEditedTip(t *testing.T) {
+	s := newStore(t)
+	a, _, err := s.New(NewInput{Scope: "p", Title: "Gradle daemon dies", Body: "Tip: x.\nWhy: y.\nVerify: z.\n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(a.Path)
+	edited := strings.Replace(string(data), "origin:", "keywords:\n  - kotlin daemon\n  - oom\ntags:\n  - android\norigin:", 1)
+	if err := os.WriteFile(a.Path, []byte(edited), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	all, err := s.List("p")
+	if err != nil || len(all) != 1 {
+		t.Fatalf("list: %v %d", err, len(all))
+	}
+	if res := Search(all, "kotlin oom", Options{}); len(res) != 1 {
+		t.Errorf("block-list keywords not searched: %+v", res)
+	}
+	if err := s.SetVerified(all[0]); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(a.Path)
+	if !strings.Contains(string(got), "keywords:\n  - kotlin daemon\n  - oom\ntags:\n  - android\n") ||
+		!strings.Contains(string(got), "status: verified\n") {
+		t.Errorf("rewrite lost fields:\n%s", got)
 	}
 }

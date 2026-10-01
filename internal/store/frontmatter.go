@@ -5,15 +5,18 @@ import (
 	"strings"
 )
 
-// Field is one frontmatter entry: a scalar or a list.
+// Field is one frontmatter entry: a scalar or a list. Raw holds the source
+// lines of a multi-line field (block list, nested map, block scalar), which
+// Render writes back unchanged, so fields added by other tools survive.
 type Field struct {
 	Key    string
 	Value  string
 	List   []string
 	IsList bool
+	Raw    string
 }
 
-// Frontmatter is an ordered set of flat `key: value` fields.
+// Frontmatter is an ordered set of top-level `key: value` fields.
 type Frontmatter struct {
 	Fields []Field
 }
@@ -80,6 +83,16 @@ func (f *Frontmatter) SetList(key string, list []string) {
 	f.Fields = append(f.Fields, fl)
 }
 
+// Clone returns a deep copy.
+func (f *Frontmatter) Clone() *Frontmatter {
+	c := &Frontmatter{Fields: make([]Field, len(f.Fields))}
+	for i, fl := range f.Fields {
+		fl.List = append([]string(nil), fl.List...)
+		c.Fields[i] = fl
+	}
+	return c
+}
+
 // Del removes key.
 func (f *Frontmatter) Del(key string) {
 	if i := f.index(key); i >= 0 {
@@ -111,17 +124,46 @@ func Split(data []byte) (fm *Frontmatter, body string, err error) {
 	head := rest[:end]
 	body = strings.TrimPrefix(rest[end:], "---")
 	body = strings.TrimLeft(body, "\n")
-	for n, line := range strings.Split(head, "\n") {
+	lines := strings.Split(strings.TrimSuffix(head, "\n"), "\n")
+	for n := 0; n < len(lines); n++ {
+		line := lines[n]
 		t := strings.TrimSpace(line)
 		if t == "" || strings.HasPrefix(t, "#") {
 			continue
+		}
+		if line != strings.TrimLeft(line, " \t") || strings.HasPrefix(t, "-") {
+			return fm, body, fmt.Errorf("frontmatter line %d: expected key: value", n+2)
 		}
 		k, v, ok := strings.Cut(t, ":")
 		if !ok {
 			return fm, body, fmt.Errorf("frontmatter line %d: expected key: value", n+2)
 		}
 		k = strings.TrimSpace(k)
-		fl, err := parseValue(strings.TrimSpace(v))
+		v = strings.TrimSpace(v)
+		if strings.HasPrefix(v, "#") {
+			v = ""
+		}
+		// Continuation lines: indented, or `- item` right under the key.
+		var cont []string
+		for j := n + 1; j < len(lines); j++ {
+			l := lines[j]
+			if strings.TrimSpace(l) == "" {
+				continue
+			}
+			if l == strings.TrimLeft(l, " \t") && !strings.HasPrefix(l, "-") {
+				break
+			}
+			cont = append(cont, lines[n+1:j+1]...)
+			n = j
+		}
+		var fl Field
+		var err error
+		if len(cont) == 0 {
+			fl, err = parseValue(v)
+		} else {
+			fl, err = parseMultiline(v, cont)
+			fl.Raw = line + "\n" + strings.Join(cont, "\n")
+		}
 		if err != nil {
 			return fm, body, fmt.Errorf("frontmatter line %d: %v", n+2, err)
 		}
@@ -133,6 +175,53 @@ func Split(data []byte) (fm *Frontmatter, body string, err error) {
 		}
 	}
 	return fm, body, nil
+}
+
+// parseMultiline reads a field whose value continues on the following lines:
+// a block list, a block scalar (| or >), a multi-line plain or quoted scalar.
+// Anything else (a nested map, a list of maps) has no usable value; it is
+// kept only as Raw.
+func parseMultiline(v string, cont []string) (Field, error) {
+	var items []string
+	for _, l := range cont {
+		t := strings.TrimSpace(l)
+		if t != "" {
+			items = append(items, t)
+		}
+	}
+	if v == "" {
+		var out []string
+		for _, it := range items {
+			if strings.HasPrefix(it, "#") {
+				continue
+			}
+			if it != "-" && !strings.HasPrefix(it, "- ") {
+				return Field{}, nil
+			}
+			it = strings.TrimSpace(strings.TrimPrefix(it, "-"))
+			if !strings.HasPrefix(it, `"`) && !strings.HasPrefix(it, "'") &&
+				(strings.Contains(it, ": ") || strings.HasSuffix(it, ":")) {
+				return Field{}, nil
+			}
+			s, _, err := parseScalar(it)
+			if err != nil {
+				return Field{}, err
+			}
+			if s != "" {
+				out = append(out, s)
+			}
+		}
+		return Field{List: out, IsList: true}, nil
+	}
+	if v[0] == '|' || v[0] == '>' {
+		sep := "\n"
+		if v[0] == '>' {
+			sep = " "
+		}
+		return Field{Value: strings.Join(items, sep)}, nil
+	}
+	s, _, err := parseScalar(v + " " + strings.Join(items, " "))
+	return Field{Value: s}, err
 }
 
 func parseValue(v string) (Field, error) {
@@ -231,6 +320,14 @@ func (f *Frontmatter) Render() string {
 	var b strings.Builder
 	b.WriteString("---\n")
 	for _, fl := range f.Fields {
+		if fl.Raw != "" {
+			b.WriteString(fl.Raw + "\n")
+			continue
+		}
+		if !fl.IsList && fl.Value == "" {
+			b.WriteString(fl.Key + ":\n")
+			continue
+		}
 		b.WriteString(fl.Key + ": ")
 		if fl.IsList {
 			parts := make([]string, len(fl.List))
@@ -270,7 +367,8 @@ func quote(s string) string {
 
 func quoteIfNeeded(s string, inList bool) string {
 	if s == "" || s != strings.TrimSpace(s) || strings.ContainsAny(s, "\"'\n\t#") ||
-		strings.Contains(s, ": ") || strings.HasPrefix(s, "[") ||
+		strings.Contains(s, ": ") || strings.HasSuffix(s, ":") ||
+		strings.ContainsRune("[]{}&*!|>%@`-?:,", rune(s[0])) ||
 		(inList && strings.ContainsAny(s, ",[]")) {
 		return quote(s)
 	}

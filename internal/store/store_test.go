@@ -179,3 +179,22 @@ func TestMissingSections(t *testing.T) {
 		t.Errorf("section = %q", g)
 	}
 }
+
+func TestSaveKeepsForeignFields(t *testing.T) {
+	s, _ := newStore(t)
+	s.Save("p", "t", SaveInput{Body: "a", Branch: "main", Commit: "abc"})
+	path := s.taskPath("p", "t")
+	data, _ := os.ReadFile(path)
+	data = []byte(strings.Replace(string(data), "---\n\n", "tags:\n  - work\naliases: [x]\n---\n\n", 1))
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Save("p", "t", SaveInput{Body: "b"}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(path)
+	want := "---\ntitle: \"t\"\ncreated: 2026-10-01T10:00:00+03:00\ntags:\n  - work\naliases: [x]\n---\n\nb\n"
+	if string(got) != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}

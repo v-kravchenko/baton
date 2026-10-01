@@ -111,8 +111,12 @@ from: auth-rewrite    # only for forks: the parent task
 ```
 
 There are no machine paths, host names, task names (the file name is the task)
-or agent session ids. Unknown fields are ignored. Only `baton save` writes
-frontmatter; agents pass the body on stdin and `--title`. The body follows the
+or agent session ids. Only `baton save` writes frontmatter; agents pass the
+body on stdin and `--title`. Fields added by other tools (Obsidian `tags`,
+`aliases`, ...) are ignored by baton and kept when it rewrites a handoff or a
+tip. Frontmatter is flat `key: value` lines; lists are `[a, b]` or block
+lists (`- a` lines under the key). Other multi-line values (nested maps,
+`|` / `>` blocks) are kept as written. The body follows the
 template printed by `baton template` (Goal, State, Decisions, Key context,
 Gotchas, User preferences, Next steps, Verify); `save` warns about missing
 sections. Markdown is read with `\r\n` or `\n` and always written with `\n`.
