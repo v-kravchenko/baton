@@ -1,7 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.1.3
 
+- Dashboard: project availability on this machine is a green/orange dot at
+  the end of the project header instead of a "no directory" chip and
+  subtitle.
 - Dashboard: a changed `dashboard.public_url` applies without a restart
   (requests to the new host got 421 "unknown Host header"); the old host
   stops being accepted.

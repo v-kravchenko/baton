@@ -289,8 +289,15 @@
     if (sub) w.appendChild(el("span", "ppath", sub));
     return w;
   }
-  const dirText = (p) => (p && p.dir ? tilde(p.dir) : "no directory on this machine");
-  const projectWho = (key) => () => whoNode(initials(key), key, dirText(projectOf(key)), (projectOf(key) || {}).dir);
+  const dirDot = (p, key, cls) => {
+    const d = el("span", "dirdot " + (p && p.dir ? "on" : "off") + (cls ? " " + cls : ""));
+    d.title = p && p.dir ? "directory on this machine: " + p.dir : "no directory on this machine: baton path set " + key + " DIR";
+    return d;
+  };
+  const projectWho = (key) => () => {
+    const p = projectOf(key);
+    return whoNode(initials(key), key, p && p.dir ? tilde(p.dir) : "", p && p.dir);
+  };
   const globalWho = () => whoNode(icon("globe"), "Global tips", "every project", "");
 
   function openPanel(key, h, where, build) {
@@ -699,15 +706,15 @@
       head.appendChild(el("span", "avatar", initials(p.key)));
       const pt = el("span", "ptitle");
       pt.appendChild(hl(el("span", "pname"), p.key));
-      pt.appendChild(el("span", "ppath", dirText(p)));
+      if (p.dir) pt.appendChild(el("span", "ppath", tilde(p.dir)));
       head.appendChild(pt);
-      if (!p.dir) head.appendChild(chip("no directory", "missing", "baton path set " + p.key + " DIR"));
       if (p.conflicts.length) head.appendChild(chip(p.conflicts.length + " sync conflicts", "warn", p.conflicts.join("\n")));
       if (p.updated && !p.updated.startsWith("0001")) {
         const a = el("span", "age last", age(p.updated));
         a.title = "last handoff " + when(p.updated);
         head.appendChild(a);
       }
+      head.appendChild(dirDot(p, p.key, head.querySelector(".last") ? "" : "last"));
       sec.appendChild(head);
 
       // Tasks | Tips tabs when the project has both.

@@ -92,6 +92,9 @@ button:focus-visible, #q:focus-visible { outline: 2px solid var(--accent); outli
 h2 { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; margin: 0;
   padding: 12px 14px 10px; }
 h2 .last { margin-left: auto; font-weight: 400; }
+h2 .dirdot { flex: none; width: 10px; height: 10px; border-radius: 50%; }
+h2 .dirdot.on { background: var(--ok); }
+h2 .dirdot.off { background: #f08c00; }
 .avatar { flex: none; display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 9px;
   font-size: 13px; font-weight: 700; letter-spacing: .02em;
   background: hsl(var(--h) 75% 93%); color: hsl(var(--h) 55% 35%); }
