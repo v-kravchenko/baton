@@ -1,5 +1,10 @@
 # baton
 
+[![ci](https://github.com/v-kravchenko/baton/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/v-kravchenko/baton/actions/workflows/ci.yml)
+[![release](https://github.com/v-kravchenko/baton/actions/workflows/release.yml/badge.svg)](https://github.com/v-kravchenko/baton/actions/workflows/release.yml)
+[![latest release](https://img.shields.io/github/v/release/v-kravchenko/baton?sort=semver)](https://github.com/v-kravchenko/baton/releases/latest)
+[![go version](https://img.shields.io/github/go-mod/go-version/v-kravchenko/baton)](go.mod)
+
 `baton` is a standalone CLI that lets a coding agent (Claude Code, opencode or
 any other) save the state of a session as a Markdown handoff for a named task,
 so that a later session on any machine and with any agent can pick it up.
