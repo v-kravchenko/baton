@@ -268,6 +268,13 @@ A project header shows the project directory on this machine and, when it is
 a git repository, an icon link to its `origin` remote (the first remote without
 `origin`) as `https://host/path`; local-path remotes get no link.
 
+With `obsidian.vault` set, the task and tip panels have an `obsidian` button
+next to the agent buttons (`obsidian://open?vault=...&file=...`, the vault
+name being its folder name)
+that opens the file in the Obsidian app on the device running the browser,
+and `baton show --json` has the same link in `handoff.obsidian`. The link
+assumes the vault has the same name and layout there.
+
 Access control:
 
 - Direct loopback clients have full access without a password.

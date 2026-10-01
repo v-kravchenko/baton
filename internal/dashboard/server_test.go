@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -319,5 +321,23 @@ func TestPublicURLReload(t *testing.T) {
 	}
 	if w := e.do("GET", "/login", "", local, host("baton.example.com")); w.Code != http.StatusMisdirectedRequest {
 		t.Fatalf("dropped host = %d", w.Code)
+	}
+}
+
+func TestObsidianLinks(t *testing.T) {
+	e := newEnv(t, false)
+	if w := e.do("GET", "/api/projects/api/tasks/auth", "", local); strings.Contains(w.Body.String(), `"obsidian":"obsidian:`) {
+		t.Errorf("link without obsidian.vault: %s", w.Body)
+	}
+	e.srv.Cfg.ObsidianVault = filepath.Dir(e.srv.Cfg.Root)
+	folder := filepath.Base(e.srv.Cfg.Root)
+	for path, file := range map[string]string{
+		"/api/projects/api/tasks/auth": folder + "%2Fapi%2Ftasks%2Fauth.md",
+		"/api/tips/api/flock-on-nfs":   folder + "%2Fapi%2Ftips%2Fflock-on-nfs.md",
+	} {
+		m := decode(t, e.do("GET", path, "", local))
+		if got, want := m["obsidian"], "obsidian://open?vault="+url.QueryEscape(filepath.Base(e.srv.Cfg.ObsidianVault))+"&file="+file; got != want {
+			t.Errorf("%s: obsidian = %v, want %s", path, got, want)
+		}
 	}
 }

@@ -5,6 +5,8 @@
 - `obsidian.vault` and `obsidian.folder` (default `baton`) put the root into
   an Obsidian vault as `<vault>/<folder>`; setting both `root` and
   `obsidian.vault` is an error.
+- With `obsidian.vault`, the dashboard task and tip panels get an Obsidian
+  button (`obsidian://open` link), also in `baton show --json`.
 - Frontmatter edited in Obsidian keeps working: block lists (`- a` lines)
   are read, and fields baton does not know (`tags`, `aliases`, nested maps,
   `|` blocks) are kept as written when `save` or a tip status change

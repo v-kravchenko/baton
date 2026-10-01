@@ -202,7 +202,8 @@ func (s *Server) apiTask(w http.ResponseWriter, r *http.Request) (any, error) {
 	for _, x := range hist {
 		hj = append(hj, taskOf(x))
 	}
-	out := map[string]any{"project": p, "handoff": taskOf(h), "body": h.Body, "history": hj, "forks": nonNil(s.Store.Forks(p, t)), "pickup": s.pickups(p, t)}
+	out := map[string]any{"project": p, "handoff": taskOf(h), "body": h.Body, "history": hj, "forks": nonNil(s.Store.Forks(p, t)), "pickup": s.pickups(p, t),
+		"obsidian": s.cfg().ObsidianURL(h.Path)}
 	if dir := s.paths()[p]; dir != "" {
 		if st, err := os.Stat(dir); err == nil && st.IsDir() {
 			stale := gitinfo.Stale(dir, h.Branch, h.Commit)
@@ -363,7 +364,8 @@ func (s *Server) apiTip(w http.ResponseWriter, r *http.Request) (any, error) {
 		return nil, err
 	}
 	j := tipOf(t, true)
-	return map[string]any{"tip": j, "superseded_by": t.FM.Get("superseded_by"), "verified": t.FM.Get("verified")}, nil
+	return map[string]any{"tip": j, "superseded_by": t.FM.Get("superseded_by"), "verified": t.FM.Get("verified"),
+		"obsidian": s.cfg().ObsidianURL(t.Path)}, nil
 }
 
 func (s *Server) apiTipDelete(w http.ResponseWriter, r *http.Request) (any, error) {

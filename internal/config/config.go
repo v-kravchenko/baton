@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -208,6 +209,21 @@ func Load(d Dirs) (Config, error) {
 		c.Root = ExpandHome(v, d.Home)
 	}
 	return c, nil
+}
+
+// ObsidianURL returns an obsidian://open link to file, or "" when the
+// integration is off or file is outside the vault (BATON_ROOT elsewhere).
+// The vault name Obsidian uses is its folder name.
+func (c Config) ObsidianURL(file string) string {
+	if c.ObsidianVault == "" {
+		return ""
+	}
+	rel, err := filepath.Rel(c.ObsidianVault, file)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return ""
+	}
+	esc := func(s string) string { return strings.ReplaceAll(url.QueryEscape(s), "+", "%20") }
+	return "obsidian://open?vault=" + esc(filepath.Base(c.ObsidianVault)) + "&file=" + esc(filepath.ToSlash(rel))
 }
 
 // cleanFolder checks obsidian.folder: a relative path inside the vault, not

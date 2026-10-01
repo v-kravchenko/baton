@@ -261,6 +261,7 @@ pre.diff .add { background: var(--addbg); }
 pre.diff .del { background: var(--delbg); }
 pre.diff .hunk { color: var(--accent); }
 .ib { display: inline-flex; align-items: center; gap: 6px; }
+.ib svg.fill { fill: currentColor; stroke: none; }
 .ib svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2;
   stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .dbar { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; margin: 0 0 4px; }
@@ -270,6 +271,10 @@ pre.diff .hunk { color: var(--accent); }
 #pbody .dbar > button, #pbody .actions > button { font-weight: 500; padding: 6px 12px; border-radius: 8px; }
 #pbody .dbar > button:not(.primary):hover, #pbody .actions > button:hover { background: var(--code); }
 #pbody .ib svg { width: 18px; height: 18px; }
+/* A link shaped like a button (Obsidian); colours come from .agents .ghost. */
+a.lbtn { border: 1px solid transparent; border-radius: 8px;
+  padding: 6px 12px; font-size: 14px; line-height: 20px; text-decoration: none; }
+a.lbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .empty, .error { padding: 24px; text-align: center; color: var(--muted); }
 .empty button { margin-top: 10px; }
 .error { color: var(--warn); }
@@ -291,6 +296,9 @@ footer a:hover { color: var(--accent); text-decoration: underline; }
 .note ul { margin: 2px 0 0; padding-left: 18px; }
 .agents { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 10px; }
 .agents .copy { font-weight: 500; }
+/* One shape for every note action; the default agent differs by colour only. */
+.agents .ghost { background: var(--code); color: var(--fg); border-color: transparent; }
+.agents .ghost:hover { background: var(--line); }
 #pbody code.manual + .dbar, .agents + code.manual { margin-bottom: 8px; }
 .offscreen { position: fixed; left: -9999px; opacity: 0; }
 /* Login page. */

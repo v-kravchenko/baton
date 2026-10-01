@@ -157,3 +157,19 @@ func TestObsidianMoveHint(t *testing.T) {
 		t.Errorf("hint after move: %v", c.Warnings)
 	}
 }
+
+func TestObsidianURL(t *testing.T) {
+	c := Config{ObsidianVault: filepath.Join("/n", "My Notes")}
+	f := filepath.Join("/n", "My Notes", "Dev", "baton", "p", "tasks", "a&b #1.md")
+	if got, want := c.ObsidianURL(f), "obsidian://open?vault=My%20Notes&file=Dev%2Fbaton%2Fp%2Ftasks%2Fa%26b%20%231.md"; got != want {
+		t.Errorf("got %s\nwant %s", got, want)
+	}
+	for _, f := range []string{"/elsewhere/p/tasks/a.md", "/n/My Notes", "/n/My Notes-2/a.md"} {
+		if got := c.ObsidianURL(filepath.FromSlash(f)); got != "" {
+			t.Errorf("%s outside the vault: %s", f, got)
+		}
+	}
+	if got := (Config{}).ObsidianURL("/n/a.md"); got != "" {
+		t.Errorf("integration off: %s", got)
+	}
+}

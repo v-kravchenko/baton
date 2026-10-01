@@ -65,6 +65,7 @@ type handoffJSON struct {
 	From     string    `json:"from,omitempty"`
 	Archived bool      `json:"archived"`
 	Path     string    `json:"path"`
+	Obsidian string    `json:"obsidian,omitempty"`
 	Body     string    `json:"body,omitempty"`
 }
 
@@ -281,6 +282,7 @@ func buildShow(app *App, st *store.Store, p, task string) (*showResult, error) {
 	r.State = stateOK
 	r.handoff = h
 	j := toJSON(h, true)
+	j.Obsidian = app.Cfg.ObsidianURL(h.Path)
 	r.Handoff = &j
 	r.Forks = st.Forks(p, h.Task)
 	s := gitinfo.Stale(app.Cwd, h.Branch, h.Commit)
