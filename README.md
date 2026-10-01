@@ -242,6 +242,10 @@ directory) and `--stop` stops it. `baton service install` runs it at login via
 systemd `--user`, launchd or Task Scheduler; Termux has no service manager,
 use `--background`.
 
+A project header shows the project directory on this machine and, when it is
+a git repository, an icon link to its `origin` remote (the first remote without
+`origin`) as `https://host/path`; local-path remotes get no link.
+
 Access control:
 
 - Direct loopback clients have full access without a password.

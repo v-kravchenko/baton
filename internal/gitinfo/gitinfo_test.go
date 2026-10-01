@@ -69,3 +69,22 @@ func TestStale(t *testing.T) {
 		t.Errorf("diverged report = %+v", s)
 	}
 }
+
+func TestWebURL(t *testing.T) {
+	for in, want := range map[string]string{
+		"git@github.com:v-kravchenko/baton.git":        "https://github.com/v-kravchenko/baton",
+		"https://github.com/v-kravchenko/baton.git":    "https://github.com/v-kravchenko/baton",
+		"https://user:tok@gitlab.com/g/sub/repo.git":   "https://gitlab.com/g/sub/repo",
+		"ssh://git@git.example.com:2222/team/repo.git": "https://git.example.com/team/repo",
+		"http://host/repo/":                            "https://host/repo",
+		"/srv/git/repo.git":                            "",
+		"file:///srv/git/repo.git":                     "",
+		`C:\repos\x`:                                   "",
+		"../other":                                     "",
+		"":                                             "",
+	} {
+		if got := WebURL(in); got != want {
+			t.Errorf("WebURL(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

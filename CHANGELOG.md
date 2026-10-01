@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5
+
+- Dashboard: a project that is a git repository shows a GitHub/GitLab/git
+  icon next to its name linking to the `origin` remote (address in the
+  tooltip).
+
 ## 0.1.4
 
 - Dashboard: the "baton" title links to All.

@@ -87,6 +87,9 @@
     reload: ["M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8", "M21 3v5h-5"],
     edit: ["M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z", "m15 5 4 4"],
     trash: ["M10 11v6", "M14 11v6", "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6", "M3 6h18", "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"],
+    github: ["M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4", "M9 18c-4.51 2-5-2-7-2"],
+    gitlab: ["m22 13.29-3.33-10a.42.42 0 0 0-.14-.18.38.38 0 0 0-.22-.11.39.39 0 0 0-.23.07.42.42 0 0 0-.14.18l-2.26 6.67H8.32L6.1 3.26a.42.42 0 0 0-.1-.18.38.38 0 0 0-.26-.08.39.39 0 0 0-.23.07.42.42 0 0 0-.14.18L2 13.29a.74.74 0 0 0 .27.83L12 21l9.69-6.88a.71.71 0 0 0 .31-.83Z"],
+    git: ["M6 3v12", "M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z", "M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z", "M15 6a9 9 0 0 0-9 9"],
     folder: ["M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"],
     globe: ["M2.0 12a10 10 0 1 0 20.0 0a10 10 0 1 0 -20.0 0", "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20", "M2 12h20"],
     sun: ["M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8", "M12 2v2", "M12 20v2", "m4.93 4.93 1.41 1.41", "m17.66 17.66 1.41 1.41",
@@ -687,6 +690,18 @@
     if (view === GLOBAL ? !gtips.length : view !== "all" && !rows.some((r) => r.p.key === view)) view = "all";
     renderNav(rows, gtips.length, view, !!q);
 
+    // Repository: a host icon next to the project name, the address in the tooltip.
+    const repoLink = (url) => {
+      const host = url.replace(/^https:\/\//, "").split("/")[0];
+      const a = el("a", "prepo");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.title = url.replace(/^https:\/\//, "");
+      a.setAttribute("aria-label", "repository " + a.title);
+      a.appendChild(icon(host === "github.com" ? "github" : /(^|\.)gitlab\./.test(host) ? "gitlab" : "git"));
+      return a;
+    };
     const projectSection = ({ p, tasks, ptips, act }) => {
       // Done forks stay under their active parent (at any depth); the rest go to Archived.
       const tree = act.slice(), inTree = new Set(act.map((t) => t.task));
@@ -705,7 +720,10 @@
       if (p.dir) head.title = p.dir;
       head.appendChild(el("span", "avatar", initials(p.key)));
       const pt = el("span", "ptitle");
-      pt.appendChild(hl(el("span", "pname"), p.key));
+      const prow = el("span", "prow");
+      prow.appendChild(hl(el("span", "pname"), p.key));
+      if (p.repo) prow.appendChild(repoLink(p.repo));
+      pt.appendChild(prow);
       if (p.dir) pt.appendChild(el("span", "ppath", tilde(p.dir)));
       head.appendChild(pt);
       if (p.conflicts.length) head.appendChild(chip(p.conflicts.length + " sync conflicts", "warn", p.conflicts.join("\n")));
@@ -824,7 +842,7 @@
         projects: list.projects.map((p, i) => {
           const d = details[i];
           const tasks = sortTasks(d.tasks.concat(d.archived)).map((t) => Object.assign({ project: p.key }, t));
-          return { key: p.key, dir: d.dir || "", updated: p.updated, conflicts: d.conflicts, tasks, tips: d.tips };
+          return { key: p.key, dir: d.dir || "", repo: p.repo || "", updated: p.updated, conflicts: d.conflicts, tasks, tips: d.tips };
         }),
         global: allTips.filter((t) => t.scope === GLOBAL),
       };

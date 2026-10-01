@@ -176,3 +176,52 @@ func isHash(s string) bool {
 	}
 	return true
 }
+
+// RemoteURL returns a browsable https URL for the origin remote of dir
+// (the first remote when there is no origin); empty when there is none or it
+// is a local path.
+func RemoteURL(dir string) string {
+	u, err := git(dir, "remote", "get-url", "origin")
+	if err != nil || u == "" {
+		rs, _ := git(dir, "remote")
+		if name, _, _ := strings.Cut(rs, "\n"); name != "" {
+			u, _ = git(dir, "remote", "get-url", name)
+		}
+	}
+	return WebURL(u)
+}
+
+// WebURL turns a git remote (https, ssh:// or scp-like user@host:path) into
+// https://host/path without credentials, port or ".git"; empty for anything else.
+func WebURL(remote string) string {
+	r := strings.TrimSpace(remote)
+	var host, path string
+	if scheme, rest, ok := strings.Cut(r, "://"); ok {
+		switch strings.ToLower(scheme) {
+		case "https", "http", "ssh", "git", "git+ssh", "ssh+git":
+		default:
+			return ""
+		}
+		host, path, _ = strings.Cut(rest, "/")
+		if i := strings.LastIndexByte(host, '@'); i >= 0 {
+			host = host[i+1:]
+		}
+		if h, _, ok := strings.Cut(host, ":"); ok && !strings.HasPrefix(host, "[") {
+			host = h
+		}
+	} else {
+		h, p, ok := strings.Cut(r, ":")
+		if !ok || strings.ContainsAny(h, "/\\") || len(h) < 2 {
+			return "" // local path or Windows drive
+		}
+		if i := strings.LastIndexByte(h, '@'); i >= 0 {
+			h = h[i+1:]
+		}
+		host, path = h, strings.TrimPrefix(p, "/")
+	}
+	path = strings.TrimSuffix(strings.TrimSuffix(path, "/"), ".git")
+	if host == "" || path == "" || strings.ContainsAny(host+path, " \t\"'<>?#") {
+		return ""
+	}
+	return "https://" + host + "/" + path
+}

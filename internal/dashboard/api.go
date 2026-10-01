@@ -88,6 +88,7 @@ func (s *Server) apiProjects(w http.ResponseWriter, r *http.Request) (any, error
 	type proj struct {
 		Key       string     `json:"key"`
 		Dir       string     `json:"dir,omitempty"`
+		Repo      string     `json:"repo,omitempty"`
 		Tasks     []taskJSON `json:"tasks"`
 		Archived  int        `json:"archived"`
 		Tips      int        `json:"tips"`
@@ -100,6 +101,9 @@ func (s *Server) apiProjects(w http.ResponseWriter, r *http.Request) (any, error
 		archived, _ := s.Store.Archived(p)
 		ts, _ := s.Tips.List(p)
 		pj := proj{Key: p, Dir: paths[p], Tasks: []taskJSON{}, Archived: len(archived), Tips: len(ts), Conflicts: len(s.Store.Conflicts(p))}
+		if pj.Dir != "" {
+			pj.Repo = gitinfo.RemoteURL(pj.Dir)
+		}
 		for _, h := range active {
 			pj.Tasks = append(pj.Tasks, taskOf(h))
 			if h.Created.After(pj.Updated) {
