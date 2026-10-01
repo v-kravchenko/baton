@@ -303,3 +303,21 @@ func TestPickupButtonsOnlyForConfiguredAgents(t *testing.T) {
 		t.Errorf("built-in agents: %d buttons", got)
 	}
 }
+
+func TestPublicURLReload(t *testing.T) {
+	e := newEnv(t, true)
+	host := func(h string) reqOpt { return func(r *http.Request) { r.Host = h } }
+	if w := e.do("GET", "/login", "", local, host("baton.example.com")); w.Code == http.StatusMisdirectedRequest {
+		t.Fatalf("old host = %d", w.Code)
+	}
+	cfg := e.srv.Cfg
+	cfg.PublicURL = "https://new.example.com"
+	e.srv.LoadConfig = func() (config.Config, error) { return cfg, nil }
+	e.srv.checked = time.Time{}
+	if w := e.do("GET", "/login", "", local, host("new.example.com")); w.Code == http.StatusMisdirectedRequest {
+		t.Fatalf("new host = %d %s", w.Code, w.Body)
+	}
+	if w := e.do("GET", "/login", "", local, host("baton.example.com")); w.Code != http.StatusMisdirectedRequest {
+		t.Fatalf("dropped host = %d", w.Code)
+	}
+}

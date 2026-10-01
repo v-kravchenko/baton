@@ -45,10 +45,11 @@ type Server struct {
 	// public_url) apply without a restart. Root, host and port stay fixed.
 	LoadConfig func() (config.Config, error)
 
-	localCSRF string
-	hostnames map[string]bool
-	mu        sync.Mutex
-	checked   time.Time
+	localCSRF  string
+	hostnames  map[string]bool
+	publicHost string
+	mu         sync.Mutex
+	checked    time.Time
 }
 
 const reloadEvery = 2 * time.Second
@@ -62,9 +63,7 @@ func (s *Server) cfg() config.Config {
 			c.Root, c.Host, c.Port = s.Cfg.Root, s.Cfg.Host, s.Cfg.Port
 			s.Cfg = c
 			s.Auth.setLimits(c.AuthIdle, c.AuthMax)
-			if u, err := url.Parse(c.PublicURL); err == nil && u.Hostname() != "" {
-				s.hostnames[strings.ToLower(u.Hostname())] = true
-			}
+			s.publicHost = publicHost(c.PublicURL)
 		}
 	}
 	return s.Cfg
@@ -84,10 +83,16 @@ func New(cfg config.Config, dirs config.Dirs, st *store.Store, ts *tips.Store, v
 	if cfg.Host != "" && net.ParseIP(cfg.Host) == nil {
 		s.hostnames[strings.ToLower(cfg.Host)] = true
 	}
-	if u, err := url.Parse(cfg.PublicURL); err == nil && u.Hostname() != "" {
-		s.hostnames[strings.ToLower(u.Hostname())] = true
-	}
+	s.publicHost = publicHost(cfg.PublicURL)
 	return s
+}
+
+// publicHost returns the lower-cased host name of public_url, or "".
+func publicHost(publicURL string) string {
+	if u, err := url.Parse(publicURL); err == nil {
+		return strings.ToLower(u.Hostname())
+	}
+	return ""
 }
 
 // Handler returns the HTTP handler with all checks applied.
@@ -155,9 +160,10 @@ func (s *Server) hostAllowed(host string) bool {
 	if net.ParseIP(name) != nil {
 		return true
 	}
+	s.cfg() // pick up a changed public_url before the check
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.hostnames[name]
+	return s.hostnames[name] || name == s.publicHost
 }
 
 func (s *Server) originAllowed(r *http.Request) bool {

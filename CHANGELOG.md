@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Dashboard: a changed `dashboard.public_url` applies without a restart
+  (requests to the new host got 421 "unknown Host header"); the old host
+  stops being accepted.
+
 ## 0.1.2
 
 - Dashboard: Markdown with `**bold**` or `*em*` no longer hangs the page
