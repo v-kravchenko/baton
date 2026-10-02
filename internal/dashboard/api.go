@@ -386,6 +386,27 @@ func (s *Server) apiRevert(w http.ResponseWriter, r *http.Request) (any, error) 
 	return s.save(p, t, store.SaveInput{Body: h.Body, Title: h.Title, Expect: in.Version})
 }
 
+// apiCheck ticks a "[ ]" item of the current handoff in place.
+func (s *Server) apiCheck(w http.ResponseWriter, r *http.Request) (any, error) {
+	p, t, err := s.taskParam(r)
+	if err != nil {
+		return nil, err
+	}
+	var in struct {
+		Line    int    `json:"line"`
+		Checked bool   `json:"checked"`
+		Version string `json:"version"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		return nil, errStatus(http.StatusBadRequest, "bad request")
+	}
+	h, err := s.Store.Check(p, t, in.Line, in.Checked, in.Version)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"handoff": taskOf(h), "version": h.Version, "body": h.Body}, nil
+}
+
 func (s *Server) apiDone(w http.ResponseWriter, r *http.Request) (any, error) {
 	p, t, err := s.taskParam(r)
 	if err != nil {

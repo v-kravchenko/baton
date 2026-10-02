@@ -118,6 +118,7 @@ func (s *Server) Handler() http.Handler {
 	api("POST /api/projects/{p}/tasks", s.apiCreate)
 	api("PUT /api/projects/{p}/tasks/{t}", s.apiSave)
 	api("POST /api/projects/{p}/tasks/{t}/history/{n}/restore", s.apiRevert)
+	api("POST /api/projects/{p}/tasks/{t}/check", s.apiCheck)
 	api("POST /api/projects/{p}/tasks/{t}/done", s.apiDone)
 	api("POST /api/projects/{p}/tasks/{t}/restore", s.apiRestore)
 	api("POST /api/projects/{p}/tasks/{t}/rename", s.apiRename)

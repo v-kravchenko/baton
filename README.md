@@ -119,7 +119,8 @@ tip. Frontmatter is flat `key: value` lines; lists are `[a, b]` or block
 lists (`- a` lines under the key). Other multi-line values (nested maps,
 `|` / `>` blocks) are kept as written. The body follows the
 template printed by `baton template` (Goal, State, Next steps, then the
-optional Decisions, Context, Verify); `save` warns about missing required
+optional Decisions, Context, Verify), with Next steps as an ordered
+checklist (`1. [ ]`, `[x]` once done); `save` warns about missing required
 sections and about a body over 3000 characters or with lines over 200
 characters (fenced code is not counted). Markdown is read with `\r\n` or `\n` and always written with `\n`.
 
@@ -273,7 +274,9 @@ follows the first `# ` heading, branch and commit come from the project
 directory on this machine or stay as they were): `+` in a project header
 starts a task from the template, and a task panel has Edit, Fork (a new task
 with `from` set, starting from the parent's text) and, per history entry,
-Restore (save that version as the current one). A save carries the version
+Restore (save that version as the current one). Checklist items (`1. [ ]`
+in Next steps) tick with a click; that rewrites the current handoff in
+place, without a history entry or a new save time. A save carries the version
 it edited; if the file changed in the meantime (an agent, a sync), it is not
 written, and the editor shows the latest text, so the next Save replaces it
 knowingly. Size budgets show while typing and come back as warnings, not

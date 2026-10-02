@@ -26,6 +26,8 @@ without `cd`. Never write files under the baton root yourself: pass bodies to
 
 Run `baton show @task`. Keep only what the next steps still need. Drop what
 this session finished and what git, CLAUDE.md, README or tips now hold.
+Next steps ticked `[x]` (the user does that in the dashboard) are done: move
+what still matters into State and drop them.
 History keeps only the last few versions (`keep`, 10 by default), so an open
 decision or parked item must stay in the handoff or move to a tip.
 
@@ -39,6 +41,7 @@ The reader is the next agent and the user scanning it. Write for a glance:
 - Budget: about 3000 characters. One fact per bullet, under 200 characters,
   at most one level of nesting.
 - State is where things stand now, not the story of this session.
+- Next steps are `1. [ ] ...` checklist items in order; Later stays plain bullets.
 - `path:line` instead of code; the exact command or error text only when it
   is the point.
 - Do not repeat what lives elsewhere: commits (git log), project rules

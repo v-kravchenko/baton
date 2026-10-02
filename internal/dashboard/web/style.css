@@ -330,3 +330,4 @@ label.field > span { display: block; color: var(--muted); font-size: 13px; margi
 label.field .ename { margin-bottom: 0; }
 textarea.editor.tip { min-height: 30vh; }
 .newkind { margin: 4px 0 6px; }
+.md li.check input { cursor: pointer; margin: 0 4px 0 0; vertical-align: -1px; }

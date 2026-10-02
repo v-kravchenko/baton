@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -367,6 +368,42 @@ func (s *Store) Save(p, t string, in SaveInput) (*SaveResult, error) {
 	res.Missing = MissingSections(body)
 	res.Handoff, err = s.read(p, t, false)
 	return res, err
+}
+
+var checkRe = regexp.MustCompile(`^(\s*(?:[-*+]|\d+[.)])\s+\[)[ xX](\].*)$`)
+
+// Check ticks (or unticks) the "[ ]" item on body line n (0-based) of an
+// active handoff in place: no history entry, the save time stays. expect is
+// the Version the caller saw; a changed file fails with ErrConflict.
+func (s *Store) Check(p, t string, n int, checked bool, expect string) (*Handoff, error) {
+	unlock, err := s.Lock(p)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	h, err := s.read(p, t, false)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("no active task %q in project %s", t, p)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if h.Version != expect {
+		return nil, fmt.Errorf("%w: task %q changed since it was opened", ErrConflict, t)
+	}
+	lines := strings.Split(h.Body, "\n")
+	if n < 0 || n >= len(lines) || !checkRe.MatchString(lines[n]) {
+		return nil, fmt.Errorf("line %d is not a checklist item", n+1)
+	}
+	mark := " "
+	if checked {
+		mark = "x"
+	}
+	lines[n] = checkRe.ReplaceAllString(lines[n], "${1}"+mark+"${2}")
+	if err := fsutil.WriteFileAtomic(h.Path, Compose(h.FM, strings.Join(lines, "\n")), 0o644); err != nil {
+		return nil, err
+	}
+	return s.read(p, t, false)
 }
 
 // rotate moves a handoff into history/<task>/<created UTC>.md.

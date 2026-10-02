@@ -1,6 +1,7 @@
 "use strict";
 // Minimal Markdown renderer that builds DOM nodes (never innerHTML), so
-// handoff text cannot inject markup.
+// handoff text cannot inject markup. With opts.onCheck(line, checked, box),
+// "[ ]" items are clickable; line is the item's 0-based line in src.
 window.renderMarkdown = (function () {
   function el(tag, cls, text) {
     const n = document.createElement(tag);
@@ -42,7 +43,8 @@ window.renderMarkdown = (function () {
     return a;
   }
 
-  return function render(src) {
+  return function render(src, opts) {
+    opts = opts || {};
     const root = el("div", "md");
     const lines = String(src || "").replace(/\r\n/g, "\n").split("\n");
     let i = 0;
@@ -100,6 +102,7 @@ window.renderMarkdown = (function () {
         const list = el(ordered ? "ol" : "ul");
         while (i < lines.length && (m = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(lines[i]))) {
           let text = m[3];
+          const at = i;
           i++;
           while (i < lines.length && /^\s{2,}\S/.test(lines[i]) && !/^\s*([-*+]|\d+[.)])\s+/.test(lines[i])) {
             text += " " + lines[i++].trim();
@@ -109,8 +112,11 @@ window.renderMarkdown = (function () {
           if (task) {
             const cb = el("input");
             cb.type = "checkbox";
-            cb.disabled = true;
             cb.checked = task[1] !== " ";
+            if (opts.onCheck) {
+              li.className = "check";
+              cb.addEventListener("change", () => opts.onCheck(at, cb.checked, cb));
+            } else cb.disabled = true;
             li.appendChild(cb);
             li.appendChild(document.createTextNode(" "));
             text = task[2];

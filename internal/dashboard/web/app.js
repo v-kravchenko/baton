@@ -384,9 +384,12 @@
 
   // The panel head shows the title; a first "# Title" heading in the text
   // would repeat it.
-  function bodyView(body, title) {
+  // onCheck(line, checked, box) gets lines of the full body.
+  function bodyView(body, title, onCheck) {
     const m = /^\s*# (.*)\n?/.exec(body);
-    return window.renderMarkdown(m && m[1].trim() === String(title).trim() ? body.slice(m[0].length) : body);
+    const cut = m && m[1].trim() === String(title).trim() ? m[0] : "";
+    const skip = cut.split("\n").length - 1;
+    return window.renderMarkdown(body.slice(cut.length), onCheck && { onCheck: (n, on, box) => onCheck(n + skip, on, box) });
   }
 
   // Latest / History tabs. Version n: 0 is the current handoff, 1.. history (newest first).
@@ -417,7 +420,7 @@
         stale.forEach((l) => n.appendChild(el("div", "mono", l)));
         view.appendChild(n);
       }
-      view.appendChild(bodyView(d.body, d.handoff.title));
+      view.appendChild(bodyView(d.body, d.handoff.title, t.archived ? null : tick));
     }
     function showHistory() {
       view.textContent = "";
@@ -483,6 +486,18 @@
         list.appendChild(panel);
       });
       view.appendChild(list);
+    }
+    // A ticked step is saved in place (no History entry), like an edit by hand.
+    async function tick(line, on, box) {
+      box.disabled = true;
+      try {
+        const r = await api(taskPath(t) + "/check", { method: "POST", body: { line, checked: on, version: d.version } });
+        d.version = r.version;
+        d.body = r.body;
+      } catch (e) {
+        box.checked = !on;
+        alert(e.status === 409 ? "The handoff changed since you opened it; reopen it and try again." : "Failed: " + e.message);
+      } finally { box.disabled = false; }
     }
     latest.addEventListener("click", () => { select(latest); showLatest(); });
     hist.addEventListener("click", () => { select(hist); showHistory(); });

@@ -32,7 +32,8 @@ Where the work stands now, not the story of the session:
 - Blocked: what waits on whom.
 
 ## Next steps
-1. Ordered, concrete actions. The first one is where the next session starts.
+1. [ ] Ordered, concrete actions. The first unchecked one is where the next session starts.
+2. [x] A step done since (ticked in the dashboard); drop it in the next handoff.
 - Later: parked items, one line each.
 
 ## Decisions

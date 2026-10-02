@@ -23,5 +23,5 @@ may be out of date. Read the listed tips with `baton tips show ID` and run
 their Verify step before relying on them. Run the cheap Verify checks. If
 the handoff lacks something you need, `baton history task` lists earlier
 versions (1 = newest) and `baton history task N` prints one. Then
-tell the user the goal, the state, what changed, and the first next step, and
-continue.
+tell the user the goal, the state, what changed, and the first unchecked next
+step (`[x]` steps were ticked done by the user), and continue.

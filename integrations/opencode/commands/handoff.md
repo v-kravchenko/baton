@@ -14,12 +14,14 @@ bodies to `baton save` and `baton tips new` on stdin.
    several fit, ask the user.
 2. Run `baton show @task`. Keep only what the next steps still need; drop
    what this session finished or what git, CLAUDE.md, README or tips hold.
+   Next steps ticked `[x]` (in the dashboard) are done: drop them.
    History keeps only the last few versions, so open decisions and parked
    items stay in the handoff or move to a tip.
 3. Run `baton template`. Goal, State and Next steps are required; skip the
    others when empty. Write for a glance: about 3000 characters, one fact per
    bullet under 200 characters, State is where things stand now (not the
-   story of the session), `path:line` instead of code. Do not repeat git log,
+   story of the session), Next steps are `1. [ ] ...` items, `path:line`
+   instead of code. Do not repeat git log,
    CLAUDE.md, README or tips (name the tip ID). A stable user preference
    becomes a tip with `origin: user`. Save with a quoted heredoc:
 

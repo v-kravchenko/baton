@@ -239,3 +239,35 @@ func TestSaveExpectNewBy(t *testing.T) {
 		t.Errorf("expect on a missing task: %v", err)
 	}
 }
+
+func TestCheck(t *testing.T) {
+	s, now := newStore(t)
+	r, _ := s.Save("p", "t", SaveInput{Body: "# T\n## Next steps\n1. [ ] one\n2. [ ] two\n- plain\n"})
+	*now = now.Add(time.Hour)
+	lines := strings.Split(r.Handoff.Body, "\n")
+	n := -1
+	for i, l := range lines {
+		if strings.Contains(l, "two") {
+			n = i
+		}
+	}
+	h, err := s.Check("p", "t", n, true, r.Handoff.Version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(h.Body, "2. [x] two") || !strings.Contains(h.Body, "1. [ ] one") || !h.Created.Equal(r.Handoff.Created) {
+		t.Errorf("%q %v", h.Body, h.Created)
+	}
+	if hist, _ := s.History("p", "t"); len(hist) != 0 {
+		t.Errorf("history: %d", len(hist))
+	}
+	if _, err := s.Check("p", "t", n, false, r.Handoff.Version); !errors.Is(err, ErrConflict) {
+		t.Errorf("stale: %v", err)
+	}
+	if _, err := s.Check("p", "t", n+1, true, h.Version); err == nil {
+		t.Error("plain bullet ticked")
+	}
+	if h, err = s.Check("p", "t", n, false, h.Version); err != nil || !strings.Contains(h.Body, "2. [ ] two") {
+		t.Errorf("%v %q", err, h.Body)
+	}
+}

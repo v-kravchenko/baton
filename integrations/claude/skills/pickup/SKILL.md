@@ -37,8 +37,9 @@ root, without `cd`.
    it dropped), `baton history task` lists earlier versions (1 = newest) and
    `baton history task N` prints one. Only the last few are kept.
 4. Tell the user in a few lines: the goal, where things stand, what changed
-   since the handoff, and the first next step. Then continue, unless the
-   handoff or the user says to wait.
+   since the handoff, and the first unchecked next step (`[x]` steps were
+   ticked done by the user). Then continue, unless the handoff or the user
+   says to wait.
 5. Words after `@task` in the arguments are the user's instructions for this
    session (for example "start with step 2"). They override the handoff's
    next steps and its "wait" notes; follow them after steps 1-4.

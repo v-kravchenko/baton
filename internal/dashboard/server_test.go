@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -418,5 +419,26 @@ func TestTipWriteAPI(t *testing.T) {
 	}
 	if w := e.do("POST", "/api/tips/api/mine/refuted", `{"why":"wrong"}`, local, tok); w.Code != 200 || !strings.Contains(w.Body.String(), `"status":"refuted"`) {
 		t.Errorf("refuted: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCheckAPI(t *testing.T) {
+	e := newEnv(t, false)
+	csrf := decode(t, e.do("GET", "/api/session", "", local))["csrf"].(string)
+	tok := header(csrfHeader, csrf)
+	e.srv.Store.Save("api", "list", store.SaveInput{Body: "## Next steps\n1. [ ] go\n"})
+	d := decode(t, e.do("GET", "/api/projects/api/tasks/list", "", local))
+	n := 0
+	for i, l := range strings.Split(d["body"].(string), "\n") {
+		if strings.HasPrefix(l, "1. [ ]") {
+			n = i
+		}
+	}
+	body := `{"line":` + strconv.Itoa(n) + `,"checked":true,"version":"` + d["version"].(string) + `"}`
+	if w := e.do("POST", "/api/projects/api/tasks/list/check", body, local, tok); w.Code != 200 || !strings.Contains(w.Body.String(), "[x] go") {
+		t.Fatalf("check: %d %s", w.Code, w.Body.String())
+	}
+	if w := e.do("POST", "/api/projects/api/tasks/list/check", body, local, tok); w.Code != 409 {
+		t.Errorf("stale check: %d", w.Code)
 	}
 }
