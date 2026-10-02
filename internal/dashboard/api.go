@@ -24,10 +24,12 @@ type taskJSON struct {
 	Commit   string    `json:"commit,omitempty"`
 	From     string    `json:"from,omitempty"`
 	Archived bool      `json:"archived"`
+	By       string    `json:"by,omitempty"`
 }
 
 func taskOf(h *store.Handoff) taskJSON {
-	return taskJSON{Task: h.Task, Title: h.Title, Created: h.Created, Branch: h.Branch, Commit: h.Commit, From: h.From, Archived: h.Archived}
+	return taskJSON{Task: h.Task, Title: h.Title, Created: h.Created, Branch: h.Branch, Commit: h.Commit, From: h.From, Archived: h.Archived,
+		By: h.FM.Get("by")}
 }
 
 type tipJSON struct {
@@ -202,7 +204,7 @@ func (s *Server) apiTask(w http.ResponseWriter, r *http.Request) (any, error) {
 	for _, x := range hist {
 		hj = append(hj, taskOf(x))
 	}
-	out := map[string]any{"project": p, "handoff": taskOf(h), "body": h.Body, "history": hj, "forks": nonNil(s.Store.Forks(p, t)), "pickup": s.pickups(p, t),
+	out := map[string]any{"project": p, "handoff": taskOf(h), "body": h.Body, "version": h.Version, "history": hj, "forks": nonNil(s.Store.Forks(p, t)), "pickup": s.pickups(p, t),
 		"obsidian": s.cfg().ObsidianURL(h.Path)}
 	if dir := s.paths()[p]; dir != "" {
 		if st, err := os.Stat(dir); err == nil && st.IsDir() {
@@ -268,6 +270,120 @@ func (s *Server) apiDiff(w http.ResponseWriter, r *http.Request) (any, error) {
 		return nil, err
 	}
 	return map[string]any{"from": taskOf(a), "to": taskOf(b), "lines": Diff(a.Body, b.Body)}, nil
+}
+
+// save writes a handoff edited in the dashboard: the title follows the first
+// heading, and branch/commit come from the project directory on this machine
+// (or stay as they were without one).
+func (s *Server) save(p, t string, in store.SaveInput) (any, error) {
+	if strings.TrimSpace(in.Body) == "" {
+		return nil, errStatus(http.StatusBadRequest, "the handoff is empty")
+	}
+	in.By = "dashboard"
+	if in.Title == "" {
+		in.Title = store.FirstHeading(in.Body)
+	}
+	var info gitinfo.Info
+	ok := false
+	if dir := s.paths()[p]; dir != "" {
+		info, ok = gitinfo.Read(dir)
+	}
+	if ok {
+		in.Branch, in.Commit = info.Branch, info.Commit
+	} else if prev, err := s.Store.Get(p, t); err == nil {
+		in.Branch, in.Commit = prev.Branch, prev.Commit
+	}
+	res, err := s.Store.Save(p, t, in)
+	if err != nil {
+		return nil, err
+	}
+	warns := store.SizeWarnings(in.Body)
+	if len(res.Missing) > 0 {
+		warns = append(warns, "missing sections: "+strings.Join(res.Missing, ", "))
+	}
+	return map[string]any{"handoff": taskOf(res.Handoff), "version": res.Handoff.Version, "warnings": nonNil(warns)}, nil
+}
+
+type saveJSON struct {
+	Task    string `json:"task"`
+	From    string `json:"from"`
+	Body    string `json:"body"`
+	Version string `json:"version"`
+}
+
+func decodeSave(r *http.Request) (saveJSON, error) {
+	var in saveJSON
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		return in, errStatus(http.StatusBadRequest, "bad request")
+	}
+	return in, nil
+}
+
+func (s *Server) apiTemplate(w http.ResponseWriter, r *http.Request) (any, error) {
+	return map[string]any{"body": store.Template, "max_chars": store.MaxChars, "max_line": store.MaxLine}, nil
+}
+
+// apiCreate starts a task, a fork when "from" names its parent.
+func (s *Server) apiCreate(w http.ResponseWriter, r *http.Request) (any, error) {
+	p, err := s.projectParam(r)
+	if err != nil {
+		return nil, err
+	}
+	in, err := decodeSave(r)
+	if err != nil {
+		return nil, err
+	}
+	t, err := store.TaskName(in.Task)
+	if err != nil {
+		return nil, err
+	}
+	from := ""
+	if in.From != "" {
+		if from, err = store.TaskName(in.From); err != nil {
+			return nil, err
+		}
+		if _, err := s.Store.Get(p, from); err != nil {
+			return nil, errStatus(http.StatusBadRequest, "no parent task @"+from)
+		}
+	}
+	return s.save(p, t, store.SaveInput{Body: in.Body, From: from, New: true})
+}
+
+func (s *Server) apiSave(w http.ResponseWriter, r *http.Request) (any, error) {
+	p, t, err := s.taskParam(r)
+	if err != nil {
+		return nil, err
+	}
+	in, err := decodeSave(r)
+	if err != nil {
+		return nil, err
+	}
+	if in.Version == "" {
+		return nil, errStatus(http.StatusBadRequest, "version is required")
+	}
+	return s.save(p, t, store.SaveInput{Body: in.Body, Expect: in.Version})
+}
+
+// apiRevert saves history entry n as the new handoff; the current one goes
+// to history like on any save.
+func (s *Server) apiRevert(w http.ResponseWriter, r *http.Request) (any, error) {
+	p, t, err := s.taskParam(r)
+	if err != nil {
+		return nil, err
+	}
+	n, err := strconv.Atoi(r.PathValue("n"))
+	if err != nil || n < 1 {
+		return nil, errStatus(http.StatusNotFound, "no such history entry")
+	}
+	in, err := decodeSave(r)
+	if err != nil {
+		return nil, err
+	}
+	h, err := s.version(p, t, n)
+	if err != nil {
+		return nil, err
+	}
+	return s.save(p, t, store.SaveInput{Body: h.Body, Title: h.Title, Expect: in.Version})
 }
 
 func (s *Server) apiDone(w http.ResponseWriter, r *http.Request) (any, error) {
@@ -364,8 +480,120 @@ func (s *Server) apiTip(w http.ResponseWriter, r *http.Request) (any, error) {
 		return nil, err
 	}
 	j := tipOf(t, true)
-	return map[string]any{"tip": j, "superseded_by": t.FM.Get("superseded_by"), "verified": t.FM.Get("verified"),
+	return map[string]any{"tip": j, "version": t.Version, "superseded_by": t.FM.Get("superseded_by"), "verified": t.FM.Get("verified"),
 		"obsidian": s.cfg().ObsidianURL(t.Path)}, nil
+}
+
+type tipEditJSON struct {
+	Scope    string   `json:"scope"`
+	Title    string   `json:"title"`
+	When     string   `json:"when"`
+	Keywords []string `json:"keywords"`
+	Body     string   `json:"body"`
+	Version  string   `json:"version"`
+	Preview  bool     `json:"preview"`
+	Why      string   `json:"why"`
+}
+
+func decodeTip(r *http.Request) (tipEditJSON, error) {
+	var in tipEditJSON
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		return in, errStatus(http.StatusBadRequest, "bad request")
+	}
+	return in, nil
+}
+
+// apiTipNew writes a tip with origin: user in a project or global scope.
+func (s *Server) apiTipNew(w http.ResponseWriter, r *http.Request) (any, error) {
+	in, err := decodeTip(r)
+	if err != nil {
+		return nil, err
+	}
+	scope, err := store.TaskName(in.Scope)
+	if err != nil || (scope != store.Global && !s.Store.Exists(scope)) {
+		return nil, errStatus(http.StatusBadRequest, "no such project")
+	}
+	nin := tips.NewInput{Scope: scope, Title: in.Title, When: in.When, Keywords: in.Keywords, Body: in.Body, Origin: "user"}
+	lookup := []string{store.Global}
+	if scope != store.Global {
+		nin.Project = scope
+		lookup = []string{scope, store.Global}
+		if dir := s.paths()[scope]; dir != "" {
+			if info, ok := gitinfo.Read(dir); ok {
+				nin.Commit = info.Commit
+			}
+		}
+	}
+	// A body starting with "---" would be read as frontmatter: keep it text.
+	if strings.HasPrefix(strings.TrimSpace(nin.Body), "---") {
+		nin.Body = "\n" + nin.Body
+	}
+	t, warns, err := s.Tips.New(nin, lookup...)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"tip": tipOf(t, false), "warnings": nonNil(warns)}, nil
+}
+
+// apiTipEdit saves a tip, or with "preview" returns the diff the save would make.
+func (s *Server) apiTipEdit(w http.ResponseWriter, r *http.Request) (any, error) {
+	t, err := s.tipParam(r)
+	if err != nil {
+		return nil, err
+	}
+	in, err := decodeTip(r)
+	if err != nil {
+		return nil, err
+	}
+	if in.Version == "" {
+		return nil, errStatus(http.StatusBadRequest, "version is required")
+	}
+	ein := tips.EditInput{Title: in.Title, When: in.When, Keywords: in.Keywords, Body: in.Body, Expect: in.Version}
+	if in.Preview {
+		if t.Version != in.Version {
+			return nil, errStatus(http.StatusConflict, "the tip changed since it was opened")
+		}
+		old, err := os.ReadFile(t.Path)
+		if err != nil {
+			return nil, err
+		}
+		data, warns, err := tips.Edited(t, ein)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"lines": Diff(string(old), string(data)), "warnings": nonNil(warns)}, nil
+	}
+	nt, warns, err := s.Tips.Edit(t, ein)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"tip": tipOf(nt, false), "warnings": nonNil(warns)}, nil
+}
+
+func (s *Server) apiTipVerified(w http.ResponseWriter, r *http.Request) (any, error) {
+	t, err := s.tipParam(r)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.Tips.SetVerified(t); err != nil {
+		return nil, err
+	}
+	return tipOf(t, false), nil
+}
+
+func (s *Server) apiTipRefuted(w http.ResponseWriter, r *http.Request) (any, error) {
+	t, err := s.tipParam(r)
+	if err != nil {
+		return nil, err
+	}
+	in, err := decodeTip(r)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.Tips.SetRefuted(t, in.Why); err != nil {
+		return nil, err
+	}
+	return tipOf(t, false), nil
 }
 
 func (s *Server) apiTipDelete(w http.ResponseWriter, r *http.Request) (any, error) {

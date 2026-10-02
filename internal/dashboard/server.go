@@ -114,11 +114,19 @@ func (s *Server) Handler() http.Handler {
 	api("GET /api/projects/{p}/tasks/{t}", s.apiTask)
 	api("GET /api/projects/{p}/tasks/{t}/history/{n}", s.apiHistory)
 	api("GET /api/projects/{p}/tasks/{t}/diff", s.apiDiff)
+	api("GET /api/template", s.apiTemplate)
+	api("POST /api/projects/{p}/tasks", s.apiCreate)
+	api("PUT /api/projects/{p}/tasks/{t}", s.apiSave)
+	api("POST /api/projects/{p}/tasks/{t}/history/{n}/restore", s.apiRevert)
 	api("POST /api/projects/{p}/tasks/{t}/done", s.apiDone)
 	api("POST /api/projects/{p}/tasks/{t}/restore", s.apiRestore)
 	api("POST /api/projects/{p}/tasks/{t}/rename", s.apiRename)
 	api("GET /api/tips", s.apiTips)
 	api("GET /api/tips/{scope}/{id}", s.apiTip)
+	api("POST /api/tips", s.apiTipNew)
+	api("PUT /api/tips/{scope}/{id}", s.apiTipEdit)
+	api("POST /api/tips/{scope}/{id}/verified", s.apiTipVerified)
+	api("POST /api/tips/{scope}/{id}/refuted", s.apiTipRefuted)
 	api("DELETE /api/tips/{scope}/{id}", s.apiTipDelete)
 	api("GET /api/search", s.apiSearch)
 	return s.guard(mux)
@@ -285,6 +293,10 @@ func writeErr(w http.ResponseWriter, err error) {
 	var he httpError
 	if errors.As(err, &he) {
 		writeJSON(w, he.code, map[string]string{"error": he.msg})
+		return
+	}
+	if errors.Is(err, store.ErrConflict) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 		return
 	}
 	if errors.Is(err, fs.ErrNotExist) {

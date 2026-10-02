@@ -1,10 +1,13 @@
 package tips
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/v-kravchenko/baton/internal/store"
 )
 
 func newStore(t *testing.T) *Store {
@@ -128,5 +131,51 @@ func TestObsidianEditedTip(t *testing.T) {
 	if !strings.Contains(string(got), "keywords:\n  - kotlin daemon\n  - oom\ntags:\n  - android\n") ||
 		!strings.Contains(string(got), "status: verified\n") {
 		t.Errorf("rewrite lost fields:\n%s", got)
+	}
+}
+
+func TestSortNewestFirst(t *testing.T) {
+	s := newStore(t)
+	var made []*Tip
+	for i, title := range []string{"Old one", "Mid one", "New one", "Gone one"} {
+		tip, _, err := s.New(NewInput{Scope: "p", Title: title, Body: "Tip: x\nVerify: y\n"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		at := time.Date(2026, 10, 1, 10, i, 0, 0, time.UTC)
+		os.Chtimes(tip.Path, at, at)
+		made = append(made, tip)
+	}
+	made[0].Status = Verified
+	made[3].Status = Refuted
+	Sort(made)
+	var got []string
+	for _, tip := range made {
+		got = append(got, tip.Title)
+	}
+	if strings.Join(got, ",") != "New one,Mid one,Old one,Gone one" {
+		t.Errorf("order: %v", got)
+	}
+}
+
+func TestEdit(t *testing.T) {
+	s := newStore(t)
+	tip, _, err := s.New(NewInput{Scope: "p", Title: "First", Body: "---\ntags: [x]\n---\nTip: a\nWhy: b\nVerify: c\n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.SetVerified(tip)
+	tip, _ = s.Get(tip.ID, "p")
+	in := EditInput{Title: "Second", When: "w", Keywords: []string{"K1", "k2"}, Body: "Tip: z\n", Expect: tip.Version}
+	got, warns, err := s.Edit(tip, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != tip.ID || got.Title != "Second" || got.When != "w" || strings.Join(got.Keywords, ",") != "k1,k2" ||
+		got.Status != Verified || got.Body != "Tip: z\n" || len(warns) != 2 {
+		t.Errorf("%+v %v", got, warns)
+	}
+	if _, _, err := s.Edit(got, EditInput{Title: "x", Body: "y", Expect: tip.Version}); !errors.Is(err, store.ErrConflict) {
+		t.Errorf("stale edit: %v", err)
 	}
 }

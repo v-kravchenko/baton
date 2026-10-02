@@ -3,6 +3,8 @@
 package tips
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -49,6 +51,7 @@ type Tip struct {
 	Source   []string // [project, commit, date]
 	Status   string
 	Env      []string
+	Version  string // hash of the file; EditInput.Expect compares it
 }
 
 // Date returns the source date (or zero).
@@ -59,6 +62,14 @@ func (t *Tip) Date() time.Time {
 		}
 	}
 	return time.Time{}
+}
+
+// Updated returns when the tip file was last written, or the source date.
+func (t *Tip) Updated() time.Time {
+	if st, err := os.Stat(t.Path); err == nil {
+		return st.ModTime()
+	}
+	return t.Date()
 }
 
 // Live reports whether the tip should be offered by default.
@@ -94,7 +105,9 @@ func Read(path, scope string) (*Tip, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	t := &Tip{ID: strings.TrimSuffix(filepath.Base(path), ".md"), Scope: scope, Path: path, FM: fm, Body: body}
+	sum := sha256.Sum256(data)
+	t := &Tip{ID: strings.TrimSuffix(filepath.Base(path), ".md"), Scope: scope, Path: path, FM: fm, Body: body,
+		Version: hex.EncodeToString(sum[:8])}
 	t.load()
 	return t, nil
 }
@@ -215,19 +228,8 @@ func (s *Store) New(in NewInput, lookup ...string) (*Tip, []string, error) {
 	if !valid {
 		return nil, nil, fmt.Errorf("origin must be one of %s", strings.Join(Origins, ", "))
 	}
-	var warns []string
-	for _, part := range []string{"Tip:", "Why:", "Verify:"} {
-		if !strings.Contains(body, part) {
-			warns = append(warns, "missing "+part)
-		}
-	}
-	if n := utf8.RuneCountInString(title); n > MaxTitle {
-		warns = append(warns, fmt.Sprintf("title is %d characters, budget %d", n, MaxTitle))
-	}
 	keywords := normalizeKeywords(pickList(in.Keywords, "keywords"))
-	if len(keywords) > MaxKeywords {
-		warns = append(warns, fmt.Sprintf("%d keywords, budget %d: keep the words an agent would search for", len(keywords), MaxKeywords))
-	}
+	warns := budget(title, body, keywords)
 	commit := in.Commit
 	if commit == "" {
 		commit = "-"
@@ -259,6 +261,78 @@ func (s *Store) New(in NewInput, lookup ...string) (*Tip, []string, error) {
 	}
 	t, err := Read(path, in.Scope)
 	return t, warns, err
+}
+
+// budget warns about missing Tip:/Why:/Verify: parts and a long title or
+// keyword list.
+func budget(title, body string, keywords []string) []string {
+	var warns []string
+	for _, part := range []string{"Tip:", "Why:", "Verify:"} {
+		if !strings.Contains(body, part) {
+			warns = append(warns, "missing "+part)
+		}
+	}
+	if n := utf8.RuneCountInString(title); n > MaxTitle {
+		warns = append(warns, fmt.Sprintf("title is %d characters, budget %d", n, MaxTitle))
+	}
+	if len(keywords) > MaxKeywords {
+		warns = append(warns, fmt.Sprintf("%d keywords, budget %d: keep the words an agent would search for", len(keywords), MaxKeywords))
+	}
+	return warns
+}
+
+// EditInput replaces the parts of a tip a person edits; the id, status and
+// source stay. Expect is the Version the caller edited.
+type EditInput struct {
+	Title    string
+	When     string
+	Keywords []string
+	Body     string
+	Expect   string
+}
+
+// Edited returns the file t would become with in, and budget warnings.
+func Edited(t *Tip, in EditInput) ([]byte, []string, error) {
+	title := strings.TrimSpace(in.Title)
+	if title == "" {
+		return nil, nil, fmt.Errorf("tip needs a title")
+	}
+	body := strings.TrimSpace(strings.ReplaceAll(in.Body, "\r\n", "\n"))
+	if body == "" {
+		return nil, nil, fmt.Errorf("empty tip body")
+	}
+	keywords := normalizeKeywords(in.Keywords)
+	fm := t.FM.Clone()
+	fm.Set("title", title)
+	fm.Set("when", strings.TrimSpace(in.When))
+	fm.SetList("keywords", keywords)
+	return store.Compose(fm, body+"\n"), budget(title, body, keywords), nil
+}
+
+// Edit rewrites t with in. It fails with store.ErrConflict when the file
+// changed since in.Expect.
+func (s *Store) Edit(t *Tip, in EditInput) (*Tip, []string, error) {
+	unlock, err := s.lock()
+	if err != nil {
+		return nil, nil, err
+	}
+	defer unlock()
+	cur, err := Read(t.Path, t.Scope)
+	if err != nil {
+		return nil, nil, err
+	}
+	if cur.Version != in.Expect {
+		return nil, nil, fmt.Errorf("%w: tip %q changed since it was opened", store.ErrConflict, t.ID)
+	}
+	data, warns, err := Edited(cur, in)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := fsutil.WriteFileAtomic(cur.Path, data, 0o644); err != nil {
+		return nil, nil, err
+	}
+	out, err := Read(cur.Path, cur.Scope)
+	return out, warns, err
 }
 
 func normalizeKeywords(ks []string) []string {
@@ -417,14 +491,19 @@ func (s *Store) Move(t *Tip, scope string) (*Tip, error) {
 	return Read(dst, scope)
 }
 
-// Sort orders tips by status (verified, active, others) then newest first.
+// Sort puts live tips (verified, active) first, then superseded and refuted,
+// newest file first within each group.
 func Sort(ts []*Tip) {
-	rank := map[string]int{Verified: 0, Active: 1, Superseded: 2, Refuted: 3}
+	rank := map[string]int{Verified: 0, Active: 0, Superseded: 1, Refuted: 2}
+	at := make(map[*Tip]time.Time, len(ts))
+	for _, t := range ts {
+		at[t] = t.Updated()
+	}
 	sort.SliceStable(ts, func(i, j int) bool {
 		if rank[ts[i].Status] != rank[ts[j].Status] {
 			return rank[ts[i].Status] < rank[ts[j].Status]
 		}
-		return ts[i].Date().After(ts[j].Date())
+		return at[ts[i]].After(at[ts[j]])
 	})
 }
 

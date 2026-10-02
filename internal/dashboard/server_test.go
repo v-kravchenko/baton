@@ -341,3 +341,82 @@ func TestObsidianLinks(t *testing.T) {
 		}
 	}
 }
+
+func TestWriteAPI(t *testing.T) {
+	e := newEnv(t, false)
+	csrf := decode(t, e.do("GET", "/api/session", "", local))["csrf"].(string)
+	tok := header(csrfHeader, csrf)
+	d := decode(t, e.do("GET", "/api/projects/api/tasks/auth", "", local))
+	ver := d["version"].(string)
+
+	w := e.do("PUT", "/api/projects/api/tasks/auth", `{"body":"# Login\n## Goal\nthird\n","version":"`+ver+`"}`, local, tok)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"title":"Login"`) || !strings.Contains(w.Body.String(), `"by":"dashboard"`) {
+		t.Fatalf("save: %d %s", w.Code, w.Body.String())
+	}
+	if w := e.do("PUT", "/api/projects/api/tasks/auth", `{"body":"x","version":"`+ver+`"}`, local, tok); w.Code != 409 {
+		t.Errorf("stale save: %d %s", w.Code, w.Body.String())
+	}
+	if w := e.do("PUT", "/api/projects/api/tasks/auth", `{"body":"x"}`, local, tok); w.Code != 400 {
+		t.Errorf("save without version: %d", w.Code)
+	}
+
+	w = e.do("POST", "/api/projects/api/tasks", `{"task":"@Auth-UI","from":"auth","body":"## Goal\nfork\n"}`, local, tok)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"from":"auth"`) || !strings.Contains(w.Body.String(), `"task":"auth-ui"`) {
+		t.Fatalf("fork: %d %s", w.Code, w.Body.String())
+	}
+	if w := e.do("POST", "/api/projects/api/tasks", `{"task":"auth-ui","body":"x"}`, local, tok); w.Code != 409 {
+		t.Errorf("create over existing: %d", w.Code)
+	}
+	if w := e.do("POST", "/api/projects/api/tasks", `{"task":"z","from":"nope","body":"x"}`, local, tok); w.Code != 400 {
+		t.Errorf("missing parent: %d", w.Code)
+	}
+
+	// History 1 is now "second"; restoring it makes it current.
+	ver = decode(t, e.do("GET", "/api/projects/api/tasks/auth", "", local))["version"].(string)
+	if w := e.do("POST", "/api/projects/api/tasks/auth/history/1/restore", `{"version":"`+ver+`"}`, local, tok); w.Code != 200 {
+		t.Fatalf("revert: %d %s", w.Code, w.Body.String())
+	}
+	if d := decode(t, e.do("GET", "/api/projects/api/tasks/auth", "", local)); !strings.Contains(d["body"].(string), "second") {
+		t.Errorf("revert body: %q", d["body"])
+	}
+	if w := e.do("GET", "/api/template", "", local); w.Code != 200 || !strings.Contains(w.Body.String(), "max_chars") {
+		t.Errorf("template: %d", w.Code)
+	}
+}
+
+func TestTipWriteAPI(t *testing.T) {
+	e := newEnv(t, false)
+	csrf := decode(t, e.do("GET", "/api/session", "", local))["csrf"].(string)
+	tok := header(csrfHeader, csrf)
+	w := e.do("POST", "/api/tips", `{"scope":"api","title":"Mine","keywords":["a"],"body":"Tip: t\nWhy: w\nVerify: v\n"}`, local, tok)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"origin":"user"`) || !strings.Contains(w.Body.String(), `"warnings":[]`) {
+		t.Fatalf("new: %d %s", w.Code, w.Body.String())
+	}
+	if w := e.do("POST", "/api/tips", `{"scope":"nope","title":"x","body":"y"}`, local, tok); w.Code != 400 {
+		t.Errorf("new in a missing project: %d", w.Code)
+	}
+	ver := decode(t, e.do("GET", "/api/tips/api/mine", "", local))["version"].(string)
+	edit := `{"title":"Mine 2","keywords":["a","b"],"body":"Tip: t2\nWhy: w\nVerify: v\n","version":"` + ver + `"`
+	w = e.do("PUT", "/api/tips/api/mine", edit+`,"preview":true}`, local, tok)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"op":"+","text":"Tip: t2"`) {
+		t.Fatalf("preview: %d %s", w.Code, w.Body.String())
+	}
+	if d := decode(t, e.do("GET", "/api/tips/api/mine", "", local)); d["version"] != ver {
+		t.Error("preview wrote the file")
+	}
+	if w := e.do("PUT", "/api/tips/api/mine", edit+`}`, local, tok); w.Code != 200 || !strings.Contains(w.Body.String(), `"title":"Mine 2"`) {
+		t.Fatalf("edit: %d %s", w.Code, w.Body.String())
+	}
+	if w := e.do("PUT", "/api/tips/api/mine", edit+`}`, local, tok); w.Code != 409 {
+		t.Errorf("stale edit: %d", w.Code)
+	}
+	if w := e.do("POST", "/api/tips/api/mine/verified", "", local, tok); w.Code != 200 || !strings.Contains(w.Body.String(), `"status":"verified"`) {
+		t.Errorf("verified: %d %s", w.Code, w.Body.String())
+	}
+	if w := e.do("POST", "/api/tips/api/mine/refuted", `{"why":""}`, local, tok); w.Code != 400 {
+		t.Errorf("refuted without a reason: %d", w.Code)
+	}
+	if w := e.do("POST", "/api/tips/api/mine/refuted", `{"why":"wrong"}`, local, tok); w.Code != 200 || !strings.Contains(w.Body.String(), `"status":"refuted"`) {
+		t.Errorf("refuted: %d %s", w.Code, w.Body.String())
+	}
+}

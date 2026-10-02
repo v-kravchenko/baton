@@ -75,6 +75,12 @@
     // Lucide icons (ISC license, lucide.dev); circles, lines and rects written as paths.
     copy: ["M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2z", "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"],
     check: ["M20 6 9 17l-5-5"],
+    plus: ["M5 12h14", "M12 5v14"],
+    fork: ["M9 18a3 3 0 1 0 6 0a3 3 0 1 0 -6 0", "M3 6a3 3 0 1 0 6 0a3 3 0 1 0 -6 0", "M15 6a3 3 0 1 0 6 0a3 3 0 1 0 -6 0",
+      "M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9", "M12 12v3"],
+    lightbulb: ["M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5", "M9 18h6", "M10 22h4"],
+    ban: ["M2 12a10 10 0 1 0 20 0a10 10 0 1 0 -20 0", "m4.9 4.9 14.2 14.2"],
+    type: ["M12 4v16", "M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2", "M9 20h6"],
     undo: ["M9 14 4 9l5-5", "M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"],
     down: ["m6 9 6 6 6-6"],
     right: ["m9 18 6-6-6-6"],
@@ -154,7 +160,11 @@
       throw new Error("signed out");
     }
     const out = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(out.error || "HTTP " + res.status);
+    if (!res.ok) {
+      const err = new Error(out.error || "HTTP " + res.status);
+      err.status = res.status;
+      throw err;
+    }
     return out;
   }
   const taskPath = (t) => `/api/projects/${enc(t.project)}/tasks/${enc(t.task)}`;
@@ -318,6 +328,7 @@
   const globalWho = () => whoNode(icon("globe"), "Global tips", "every project", "");
 
   function openPanel(key, h, where, build) {
+    if (!leaveEditor()) return;
     const p = $("#panel");
     p.style.setProperty("--h", h);
     $("#pwhere").textContent = "";
@@ -335,7 +346,7 @@
     $("#pclose").focus();
   }
   function closePanel() {
-    if ($("#panel").hidden) return;
+    if ($("#panel").hidden || !leaveEditor()) return;
     $("#panel").hidden = true;
     $("#scrim").hidden = true;
     document.body.classList.remove("noscroll");
@@ -371,6 +382,13 @@
     return pre;
   }
 
+  // The panel head shows the title; a first "# Title" heading in the text
+  // would repeat it.
+  function bodyView(body, title) {
+    const m = /^\s*# (.*)\n?/.exec(body);
+    return window.renderMarkdown(m && m[1].trim() === String(title).trim() ? body.slice(m[0].length) : body);
+  }
+
   // Latest / History tabs. Version n: 0 is the current handoff, 1.. history (newest first).
   function details(t, d, box, actions) {
     const tabs = el("div", "seg tabs");
@@ -399,7 +417,7 @@
         stale.forEach((l) => n.appendChild(el("div", "mono", l)));
         view.appendChild(n);
       }
-      view.appendChild(window.renderMarkdown(d.body));
+      view.appendChild(bodyView(d.body, d.handoff.title));
     }
     function showHistory() {
       view.textContent = "";
@@ -433,7 +451,7 @@
         // version has nothing to diff against.
         const open = el("button", "", "View");
         open.addEventListener("click", () => toggle(open, async () =>
-          window.renderMarkdown(n ? (await api(taskPath(t) + "/history/" + n)).body : d.body)));
+          bodyView(n ? (await api(taskPath(t) + "/history/" + n)).body : d.body, v.title)));
         btns.appendChild(open);
         const b = el("button", "", "Diff");
         if (n + 1 < rows.length) {
@@ -445,6 +463,21 @@
           b.title = "first version: nothing to compare with";
         }
         btns.appendChild(b);
+        if (n) {
+          const r = el("button", "", "Restore");
+          r.title = "make this version current; the current one stays in History";
+          r.addEventListener("click", async () => {
+            if (!confirm("Make this version of @" + t.task + " current?")) return;
+            r.disabled = true;
+            try {
+              await saved(t.project, await api(taskPath(t) + "/history/" + n + "/restore", { method: "POST", body: { version: d.version } }));
+            } catch (e) {
+              r.disabled = false;
+              alert(e.status === 409 ? "The handoff changed since you opened it; reopen it and try again." : "Failed: " + e.message);
+            }
+          });
+          btns.appendChild(r);
+        }
         row.appendChild(btns);
         list.appendChild(row);
         list.appendChild(panel);
@@ -477,7 +510,15 @@
       });
       if (d.obsidian) row.appendChild(obsidianLink(d.obsidian));
       const acts = [];
-      const ren = ibtn("edit", "Rename", "ren");
+      const edit = ibtn("edit", "Edit");
+      edit.title = "edit the handoff (saved like baton save; the current text goes to History)";
+      edit.addEventListener("click", () => editTask(t, d, box));
+      acts.push(edit);
+      const fork = ibtn("fork", "Fork");
+      fork.title = "start a task from @" + t.task;
+      fork.addEventListener("click", () => newTask(t.project, t, d.body));
+      acts.push(fork);
+      const ren = ibtn("type", "Rename", "ren");
       ren.title = "rename @" + t.task;
       ren.addEventListener("click", async () => {
         const name = prompt("New name for @" + t.task + ":", t.task);
@@ -505,11 +546,304 @@
       });
       acts.push(act);
       details(t, d, box, acts);
+      if (notice && notice.key === keyOf(t)) {
+        const n = el("div", "note");
+        n.appendChild(el("strong", "", "Saved with warnings"));
+        notice.warnings.forEach((w) => n.appendChild(el("div", "", w)));
+        box.insertBefore(n, box.firstChild);
+      }
+      notice = null;
       // Under the git crumbs, above the tabs.
       const bar = box.querySelector(".dbar");
       if (row.childNodes.length) box.insertBefore(row, bar);
       codes.forEach((c) => box.insertBefore(c, bar));
     }).catch(failed(box));
+  }
+
+  // ---- editor -------------------------------------------------------------
+
+  let tpl = null; // { body, max_chars, max_line } from /api/template
+  const template = async () => tpl || (tpl = await api("/api/template"));
+  let dirty = null; // () => true while the open editor has unsaved text
+  let notice = null; // { key, warnings } shown once by the next task panel
+  function leaveEditor() {
+    if (dirty && dirty() && !confirm("Discard unsaved changes?")) return false;
+    dirty = null;
+    return true;
+  }
+  window.addEventListener("beforeunload", (e) => { if (dirty && dirty()) e.preventDefault(); });
+
+  // Ctrl+S (Cmd+S) in the editor fields saves; the panel box is reused, so
+  // the keys are bound to the fields, which every editor makes anew.
+  function onSaveKey(fields, save) {
+    fields.forEach((f) => f && f.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); save(); }
+    }));
+  }
+
+  // Mirrors store.SizeWarnings: fenced code is not counted.
+  function sizeOf(text) {
+    let chars = 0, long = 0, fence = false;
+    text.split("\n").forEach((l) => {
+      if (l.trim().startsWith("```")) { fence = !fence; return; }
+      if (fence) return;
+      const n = Array.from(l).length;
+      chars += n + 1;
+      if (n > tpl.max_line) long++;
+    });
+    return { chars, long };
+  }
+
+  // Edit / Preview tabs over a textarea, a size meter, Save and Cancel
+  // (Ctrl+S saves). o: { text, name (a task-name field when set), save(text, name, msg), cancel }.
+  function editor(box, o) {
+    box.textContent = "";
+    let name = null;
+    if (o.name !== undefined) {
+      name = el("input", "ename mono");
+      name.value = o.name;
+      name.placeholder = "task-name";
+      name.autocomplete = "off";
+      name.spellcheck = false;
+      name.setAttribute("aria-label", "Task name");
+      box.appendChild(name);
+    }
+    const tabs = el("div", "seg tabs");
+    tabs.setAttribute("role", "tablist");
+    const tab = (text) => { const b = el("button", "", text); b.setAttribute("role", "tab"); tabs.appendChild(b); return b; };
+    const write = tab("Edit"), look = tab("Preview");
+    const bar = el("div", "dbar");
+    bar.appendChild(tabs);
+    const meter = el("span", "meter");
+    bar.appendChild(meter);
+    box.appendChild(bar);
+    const ta = el("textarea", "editor mono");
+    ta.value = o.text;
+    ta.spellcheck = false;
+    ta.setAttribute("aria-label", "Handoff Markdown");
+    const view = el("div", "preview");
+    const msg = el("div");
+    box.appendChild(msg);
+    box.appendChild(ta);
+    box.appendChild(view);
+    const select = (b) => {
+      [write, look].forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+      ta.hidden = b !== write;
+      view.hidden = b === write;
+      if (b === look) { view.textContent = ""; view.appendChild(window.renderMarkdown(ta.value)); }
+    };
+    write.addEventListener("click", () => { select(write); ta.focus(); });
+    look.addEventListener("click", () => select(look));
+    select(write);
+    const count = () => {
+      const z = sizeOf(ta.value);
+      meter.textContent = z.chars + " / " + tpl.max_chars + (z.long ? " · " + z.long + " lines over " + tpl.max_line : "");
+      meter.title = "characters outside code blocks; the budget is a warning, not a limit";
+      meter.classList.toggle("over", z.chars > tpl.max_chars || z.long > 0);
+    };
+    ta.addEventListener("input", count);
+    count();
+    const row = el("div", "actions");
+    const save = el("button", "primary", "Save");
+    save.title = "save (Ctrl+S)";
+    const cancel = el("button", "", "Cancel");
+    row.appendChild(save);
+    row.appendChild(cancel);
+    box.appendChild(row);
+    const start = o.text, startName = o.name;
+    dirty = () => ta.value !== start || (name !== null && name.value !== startName);
+    async function doSave() {
+      if (save.disabled) return;
+      save.disabled = true;
+      try {
+        await o.save(ta.value, name ? name.value.trim().replace(/^@/, "") : "", msg);
+      } catch (e) {
+        msg.textContent = "";
+        msg.appendChild(el("div", "note", "Not saved: " + e.message));
+      } finally { save.disabled = false; }
+    }
+    save.addEventListener("click", doSave);
+    onSaveKey([name, ta], doSave);
+    cancel.addEventListener("click", () => { if (leaveEditor()) o.cancel(); });
+    (name || ta).focus();
+  }
+
+  // After a save: refresh the list and show the task, with size warnings once.
+  async function saved(project, r) {
+    dirty = null;
+    const t = Object.assign({ project }, r.handoff);
+    if (r.warnings.length) notice = { key: keyOf(t), warnings: r.warnings };
+    await load();
+    openTask(t);
+  }
+
+  async function editTask(t, d, box) {
+    try { await template(); } catch (e) { alert("Failed: " + e.message); return; }
+    let version = d.version;
+    editor(box, {
+      text: d.body,
+      cancel: () => openTask(t),
+      save: async (text, _, msg) => {
+        try {
+          await saved(t.project, await api(taskPath(t), { method: "PUT", body: { body: text, version } }));
+        } catch (e) {
+          if (e.status !== 409) throw e;
+          // An agent or a sync changed the file: show it, keep the text; the
+          // next Save replaces it and the replaced version stays in History.
+          const cur = await api(taskPath(t));
+          version = cur.version;
+          msg.textContent = "";
+          const n = el("div", "note");
+          n.appendChild(el("strong", "", "Changed since you opened it"));
+          n.appendChild(el("div", "", "Save again to replace the version below; it stays in History."));
+          msg.appendChild(n);
+          const latest = el("details", "latest");
+          latest.appendChild(el("summary", "", "Latest version (" + age(cur.handoff.created) + ")"));
+          latest.appendChild(window.renderMarkdown(cur.body));
+          msg.appendChild(latest);
+        }
+      },
+    });
+  }
+
+  // A new task (or tip) in project, or a fork of parent starting from its text.
+  function newTask(project, parent, text) {
+    openPanel("new:" + project, hue(project), projectWho(project), (body) => {
+      body.appendChild(el("h3", "ptitle2", parent ? "Fork of @" + parent.task : "New"));
+      const box = el("div", "details");
+      const startTask = () => template().then((tp) => editor(box, {
+        name: parent ? parent.task + "-" : "",
+        text: parent ? text : tp.body,
+        cancel: () => (parent ? openTask(parent) : closePanel()),
+        save: async (body, name) => {
+          if (!name) throw new Error("the task needs a name");
+          try {
+            await saved(project, await api(`/api/projects/${enc(project)}/tasks`, { method: "POST",
+              body: { task: name, from: parent ? parent.task : "", body } }));
+          } catch (e) {
+            if (e.status === 409) throw new Error("@" + name + " already exists");
+            throw e;
+          }
+        },
+      })).catch(failed(box));
+      const startTip = () => template().then(() => tipForm(box, { scope: project })).catch(failed(box));
+      if (!parent) {
+        const tabs = el("div", "seg tabs newkind");
+        tabs.setAttribute("role", "tablist");
+        [["Task", startTask], ["Tip", startTip]].forEach(([label, start], i) => {
+          const b = el("button", "", label);
+          b.setAttribute("role", "tab");
+          b.setAttribute("aria-selected", String(!i));
+          b.addEventListener("click", () => {
+            if (b.getAttribute("aria-selected") === "true" || !leaveEditor()) return;
+            tabs.querySelectorAll("button").forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+            box.textContent = "Loading…";
+            start();
+          });
+          tabs.appendChild(b);
+        });
+        body.appendChild(tabs);
+      }
+      box.textContent = "Loading…";
+      body.appendChild(box);
+      startTask();
+    });
+  }
+
+  function openTip(tip) {
+    const g = tip.scope === GLOBAL;
+    openPanel("p:" + tipKey(tip), g ? 200 : hue(tip.scope), g ? globalWho : projectWho(tip.scope), (body) => tipPanel(tip, body));
+  }
+  async function tipSaved(r) {
+    dirty = null;
+    if (r.warnings && r.warnings.length) notice = { key: "p:" + tipKey(r.tip || r), warnings: r.warnings };
+    await load();
+    openTip(r.tip || r);
+  }
+
+  // Title, when, keywords and the Tip:/Why:/Verify: text. Editing shows the
+  // diff first (tips have no history); a new tip picks its scope.
+  // o: { tip, version } to edit, or { scope } (a project) for a new one.
+  function tipForm(box, o) {
+    box.textContent = "";
+    const t = o.tip;
+    const field = (label, value, cls) => {
+      const l = el("label", "field");
+      l.appendChild(el("span", "", label));
+      const i = el("input", "ename" + (cls ? " " + cls : ""));
+      i.value = value || "";
+      i.autocomplete = "off";
+      l.appendChild(i);
+      box.appendChild(l);
+      return i;
+    };
+    let scope = null;
+    if (!t) {
+      const l = el("label", "field");
+      l.appendChild(el("span", "", "Scope"));
+      scope = el("select", "ename");
+      [[o.scope, "project " + o.scope], [GLOBAL, "global: every project"]].forEach(([v, text]) => {
+        const op = el("option", "", text);
+        op.value = v;
+        scope.appendChild(op);
+      });
+      l.appendChild(scope);
+      box.appendChild(l);
+    }
+    const title = field("Title", t ? t.title : "");
+    const whenIn = field("When", t ? t.when : "");
+    whenIn.placeholder = "the situation where it applies";
+    const kw = field("Keywords", t ? (t.keywords || []).join(", ") : "", "mono");
+    kw.placeholder = "comma-separated";
+    const ta = el("textarea", "editor tip mono");
+    ta.value = t ? t.body : "Tip: \nWhy: \nVerify: \n";
+    ta.spellcheck = false;
+    ta.setAttribute("aria-label", "Tip text");
+    const msg = el("div");
+    box.appendChild(msg);
+    box.appendChild(ta);
+    const row = el("div", "actions");
+    const save = el("button", "primary", t ? "Review" : "Save");
+    save.title = t ? "show the changes before saving (Ctrl+S)" : "save (Ctrl+S)";
+    const cancel = el("button", "", "Cancel");
+    row.appendChild(save);
+    row.appendChild(cancel);
+    box.appendChild(row);
+    const inputs = [title, whenIn, kw, ta];
+    const start = inputs.map((i) => i.value).join("\0");
+    dirty = () => inputs.map((i) => i.value).join("\0") !== start;
+    let confirmed = false; // Review showed this text; the next click saves
+    inputs.forEach((i) => i.addEventListener("input", () => {
+      if (confirmed) { confirmed = false; save.textContent = "Review"; msg.textContent = ""; }
+    }));
+    const payload = () => ({ title: title.value, when: whenIn.value, body: ta.value,
+      keywords: kw.value.split(",").map((k) => k.trim()).filter(Boolean) });
+    const fail = (text) => { msg.textContent = ""; msg.appendChild(el("div", "note", text)); };
+    async function doSave() {
+      if (save.disabled) return;
+      save.disabled = true;
+      try {
+        if (!t) {
+          await tipSaved(await api("/api/tips", { method: "POST", body: Object.assign({ scope: scope.value }, payload()) }));
+        } else if (!confirmed) {
+          const r = await api(tipPath(t), { method: "PUT", body: Object.assign({ version: o.version, preview: true }, payload()) });
+          msg.textContent = "";
+          r.warnings.forEach((w) => msg.appendChild(el("div", "note", w)));
+          msg.appendChild(diffView(r.lines));
+          confirmed = true;
+          save.textContent = "Save";
+          save.title = "save these changes (Ctrl+S)";
+        } else {
+          await tipSaved(await api(tipPath(t), { method: "PUT", body: Object.assign({ version: o.version }, payload()) }));
+        }
+      } catch (e) {
+        fail(e.status === 409 ? "The tip changed since you opened it; copy your text, cancel and reopen it." : "Not saved: " + e.message);
+      } finally { save.disabled = false; }
+    }
+    save.addEventListener("click", doSave);
+    onSaveKey(inputs, doSave);
+    cancel.addEventListener("click", () => { if (leaveEditor()) (t ? openTip(t) : closePanel()); });
+    title.focus();
   }
 
   // Tips: read and delete here; `baton tips` does the rest.
@@ -558,6 +892,29 @@
       meta("Superseded by", d.superseded_by);
       const row = el("div", "actions");
       row.appendChild(el("div", "file", t.scope + "/" + t.id));
+      const mark = async (btn, path, body) => {
+        btn.disabled = true;
+        try { tipSaved(await api(tipPath(t) + path, { method: "POST", body })); } catch (e) { btn.disabled = false; alert("Failed: " + e.message); }
+      };
+      if (t.status !== "verified") {
+        const ok = ibtn("check", "Verified");
+        ok.title = "its Verify step passed (like baton tips verified)";
+        ok.addEventListener("click", () => mark(ok, "/verified"));
+        row.appendChild(ok);
+      }
+      if (t.status !== "refuted") {
+        const no = ibtn("ban", "Refuted");
+        no.title = "it is wrong; the reason goes into the tip (like baton tips refuted)";
+        no.addEventListener("click", () => {
+          const why = prompt("Why is " + t.id + " wrong?");
+          if (why && why.trim()) mark(no, "/refuted", { why: why.trim() });
+        });
+        row.appendChild(no);
+      }
+      const edit = ibtn("edit", "Edit");
+      edit.title = "edit the title, when, keywords and text";
+      edit.addEventListener("click", () => template().then(() => tipForm(box, { tip: t, version: d.version })).catch((e) => alert("Failed: " + e.message)));
+      row.appendChild(edit);
       const del = ibtn("trash", "Delete");
       del.title = "delete the tip file";
       del.addEventListener("click", async () => {
@@ -571,12 +928,20 @@
       });
       row.appendChild(del);
       box.appendChild(row);
+      if (notice && notice.key === "p:" + tipKey(t)) {
+        const n = el("div", "note");
+        n.appendChild(el("strong", "", "Saved with warnings"));
+        notice.warnings.forEach((w) => n.appendChild(el("div", "", w)));
+        box.insertBefore(n, box.firstChild);
+      }
+      notice = null;
     }).catch(failed(box));
   }
-  // Tips, active and verified first, in API order.
+  // Tips, active and verified first, newest first (the date the card shows).
   function tipsList(tips, where, h) {
     const rank = (t) => (t.status === "active" || t.status === "verified" ? 0 : 1);
-    return tips.slice().sort((a, b) => rank(a) - rank(b)).map((t) => tipCard(t, where, h));
+    const at = (t) => Date.parse(tipDate(t)) || 0;
+    return tips.slice().sort((a, b) => rank(a) - rank(b) || at(b) - at(a)).map((t) => tipCard(t, where, h));
   }
 
   // ---- task trees ---------------------------------------------------------
@@ -747,6 +1112,11 @@
       if (p.dir) pt.appendChild(el("span", "ppath", tilde(p.dir)));
       head.appendChild(pt);
       if (p.conflicts.length) head.appendChild(chip(p.conflicts.length + " sync conflicts", "warn", p.conflicts.join("\n")));
+      const add = ibtn("plus", "", "ghost newt");
+      add.title = "new task or tip in " + p.key;
+      add.setAttribute("aria-label", add.title);
+      add.addEventListener("click", () => newTask(p.key));
+      head.appendChild(add);
       head.appendChild(dirDot(p, p.key, "last"));
       sec.appendChild(head);
 

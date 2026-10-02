@@ -105,13 +105,14 @@ created: 2026-10-01T10:15:00+03:00
 branch: main          # only in a git repository
 commit: a1b2c3d       # only in a git repository
 from: auth-rewrite    # only for forks: the parent task
+by: dashboard         # only when saved in the dashboard
 ---
 ## Goal
 ...
 ```
 
 There are no machine paths, host names, task names (the file name is the task)
-or agent session ids. Only `baton save` writes frontmatter; agents pass the
+or agent session ids. Only `baton save` and the dashboard write frontmatter; agents pass the
 body on stdin and `--title`. Fields added by other tools (Obsidian `tags`,
 `aliases`, ...) are ignored by baton and kept when it rewrites a handoff or a
 tip. Frontmatter is flat `key: value` lines; lists are `[a, b]` or block
@@ -265,6 +266,24 @@ otherwise it prints the URL). `--background` detaches it (log in the state
 directory) and `--stop` stops it. `baton service install` runs it at login via
 systemd `--user`, launchd or Task Scheduler; Termux has no service manager,
 use `--background`.
+
+The dashboard edits handoffs too, saving them like `baton save` (the
+previous text goes to history, `by: dashboard` marks the save, the title
+follows the first `# ` heading, branch and commit come from the project
+directory on this machine or stay as they were): `+` in a project header
+starts a task from the template, and a task panel has Edit, Fork (a new task
+with `from` set, starting from the parent's text) and, per history entry,
+Restore (save that version as the current one). A save carries the version
+it edited; if the file changed in the meantime (an agent, a sync), it is not
+written, and the editor shows the latest text, so the next Save replaces it
+knowingly. Size budgets show while typing and come back as warnings, not
+errors.
+
+Tips are edited there as well: `+` offers Task or Tip (a new tip gets
+`origin: user` and the project or global scope), and a tip panel has
+Verified, Refuted (asks for the reason), Edit and Delete. Edit changes the
+title, `when`, keywords and text, keeps the id and the other fields, and
+shows the diff before saving, since tips have no history.
 
 A project header shows the project directory on this machine and, when it is
 a git repository, an icon link to its `origin` remote (the first remote without

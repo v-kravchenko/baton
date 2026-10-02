@@ -312,3 +312,21 @@ body.login { display: grid; place-items: center; min-height: 100vh; }
   border-radius: 8px; padding: 7px 12px; }
 #login input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 #login .error { padding: 0; text-align: left; }
+/* Handoff editor. */
+textarea.editor, input.ename { width: 100%; font-size: 13px; color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+textarea.editor { min-height: 55vh; line-height: 1.45; resize: vertical; margin-top: 4px; }
+input.ename { margin-bottom: 8px; }
+textarea.editor:focus-visible, input.ename:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.preview { margin-top: 4px; }
+.meter { color: var(--muted); font-size: 12px; }
+.meter.over { color: var(--warn); }
+details.latest { margin: 0 0 10px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; }
+details.latest summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.project h2 .newt { padding: 4px; margin-left: auto; }
+.project h2 .newt + .last { margin-left: 0; }
+label.field { display: block; margin-bottom: 8px; }
+label.field > span { display: block; color: var(--muted); font-size: 13px; margin-bottom: 2px; }
+label.field .ename { margin-bottom: 0; }
+textarea.editor.tip { min-height: 30vh; }
+.newkind { margin: 4px 0 6px; }

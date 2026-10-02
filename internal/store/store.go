@@ -2,6 +2,8 @@
 package store
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -108,7 +110,11 @@ type Handoff struct {
 	From     string
 	Branch   string
 	Commit   string
+	Version  string // hash of the file; SaveInput.Expect compares it
 }
+
+// ErrConflict means the task changed (or exists) since the caller read it.
+var ErrConflict = errors.New("conflict")
 
 // ProjectDir returns <root>/<project>.
 func (s *Store) ProjectDir(p string) string { return filepath.Join(s.Root, p) }
@@ -146,7 +152,9 @@ func ReadFile(path string) (*Handoff, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	h := &Handoff{Path: path, FM: fm, Body: body, Task: strings.TrimSuffix(filepath.Base(path), ".md")}
+	sum := sha256.Sum256(data)
+	h := &Handoff{Path: path, FM: fm, Body: body, Task: strings.TrimSuffix(filepath.Base(path), ".md"),
+		Version: hex.EncodeToString(sum[:8])}
 	h.Title = fm.Get("title")
 	h.From = fm.Get("from")
 	h.Branch = fm.Get("branch")
@@ -259,6 +267,11 @@ type SaveInput struct {
 	From   string
 	Branch string
 	Commit string
+	By     string // who saved it ("dashboard"); empty for agents and the CLI
+	// Expect is the Version the caller edited; a different current file
+	// fails with ErrConflict. New fails with ErrConflict when the task exists.
+	Expect string
+	New    bool
 }
 
 // SaveResult reports what Save did.
@@ -299,6 +312,12 @@ func (s *Store) Save(p, t string, in SaveInput) (*SaveResult, error) {
 			res.Restored = true
 		}
 	}
+	if in.New && prev != nil {
+		return nil, fmt.Errorf("%w: task %q already exists", ErrConflict, t)
+	}
+	if in.Expect != "" && (prev == nil || prev.Version != in.Expect) {
+		return nil, fmt.Errorf("%w: task %q changed since it was opened", ErrConflict, t)
+	}
 
 	title := in.Title
 	if title == "" && bodyFM != nil {
@@ -308,7 +327,7 @@ func (s *Store) Save(p, t string, in SaveInput) (*SaveResult, error) {
 		title = prev.Title
 	}
 	if title == "" {
-		title = firstHeading(body)
+		title = FirstHeading(body)
 	}
 	if title == "" {
 		title = t
@@ -331,6 +350,7 @@ func (s *Store) Save(p, t string, in SaveInput) (*SaveResult, error) {
 	fm.Set("branch", in.Branch)
 	fm.Set("commit", in.Commit)
 	fm.Set("from", from)
+	fm.Set("by", in.By)
 
 	if prev != nil {
 		dst, err := s.rotate(prev)
@@ -533,7 +553,8 @@ func (s *Store) Conflicts(p string) []string {
 	return out
 }
 
-func firstHeading(body string) string {
+// FirstHeading returns the text of the first "# " heading, or "".
+func FirstHeading(body string) string {
 	for _, l := range strings.Split(body, "\n") {
 		if h, ok := strings.CutPrefix(l, "# "); ok {
 			return strings.TrimSpace(h)

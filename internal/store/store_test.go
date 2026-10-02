@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -211,5 +212,30 @@ func TestSaveKeepsForeignFields(t *testing.T) {
 	want := "---\ntitle: \"t\"\ncreated: 2026-10-01T10:00:00+03:00\ntags:\n  - work\naliases: [x]\n---\n\nb\n"
 	if string(got) != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestSaveExpectNewBy(t *testing.T) {
+	s, _ := newStore(t)
+	r, err := s.Save("p", "t", SaveInput{Body: "a", New: true, By: "dashboard"})
+	if err != nil || r.Handoff.FM.Get("by") != "dashboard" || r.Handoff.Version == "" {
+		t.Fatalf("%v %+v", err, r)
+	}
+	if _, err := s.Save("p", "t", SaveInput{Body: "b", New: true}); !errors.Is(err, ErrConflict) {
+		t.Errorf("new over existing: %v", err)
+	}
+	if _, err := s.Save("p", "t", SaveInput{Body: "b", Expect: "0000"}); !errors.Is(err, ErrConflict) {
+		t.Errorf("stale version: %v", err)
+	}
+	r2, err := s.Save("p", "t", SaveInput{Body: "b", Expect: r.Handoff.Version})
+	if err != nil || r2.Handoff.Version == r.Handoff.Version {
+		t.Fatalf("%v %+v", err, r2)
+	}
+	// An agent save drops the dashboard mark.
+	if r2.Handoff.FM.Get("by") != "" {
+		t.Errorf("by kept: %q", r2.Handoff.FM.Get("by"))
+	}
+	if _, err := s.Save("p", "u", SaveInput{Body: "c", Expect: "x"}); !errors.Is(err, ErrConflict) {
+		t.Errorf("expect on a missing task: %v", err)
 	}
 }
