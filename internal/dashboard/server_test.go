@@ -442,3 +442,31 @@ func TestCheckAPI(t *testing.T) {
 		t.Errorf("stale check: %d", w.Code)
 	}
 }
+
+func TestSlugAPI(t *testing.T) {
+	e := newEnv(t, false)
+	for title, want := range map[string]string{"Auth": "auth-2", "Termux TLS!": "termux-tls", "Перевірка": "perevirka", "!!!": "", "con": "con-task"} {
+		got := decode(t, e.do("GET", "/api/projects/api/slug?title="+url.QueryEscape(title), "", local))["task"]
+		if got != want {
+			t.Errorf("%q = %v, want %q", title, got, want)
+		}
+	}
+}
+
+func TestPWAAssets(t *testing.T) {
+	e := newEnv(t, true)
+	if w := e.do("GET", "/sw.js", "", remote); w.Code != 200 || !strings.HasPrefix(w.Header().Get("Content-Type"), "text/javascript") {
+		t.Errorf("sw.js: %d %s", w.Code, w.Header().Get("Content-Type"))
+	}
+	w := e.do("GET", "/manifest.webmanifest", "", remote)
+	var m map[string]any
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &m) != nil || m["start_url"] != "/" {
+		t.Errorf("manifest: %d %s", w.Code, w.Body.String())
+	}
+	for _, icon := range m["icons"].([]any) {
+		src := icon.(map[string]any)["src"].(string)
+		if w := e.do("GET", src, "", remote); w.Code != 200 {
+			t.Errorf("%s: %d", src, w.Code)
+		}
+	}
+}

@@ -368,8 +368,16 @@ func (s *Store) uniqueID(base string, scopes []string) string {
 }
 
 // Slug makes an id from a title: lower-case ASCII words joined by '-',
-// at most 48 characters.
+// at most 48 characters; "tip" when nothing is left.
 func Slug(title string) string {
+	if s := Words(title); s != "" {
+		return s
+	}
+	return "tip"
+}
+
+// Words is Slug without the fallback: "" when the title has no letters or digits.
+func Words(title string) string {
 	var words []string
 	var cur strings.Builder
 	flush := func() {
@@ -401,9 +409,6 @@ func Slug(title string) string {
 	s := b.String()
 	if len(s) > 48 {
 		s = s[:48]
-	}
-	if s == "" {
-		s = "tip"
 	}
 	return s
 }

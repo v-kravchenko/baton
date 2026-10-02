@@ -1,7 +1,9 @@
 "use strict";
 // Minimal Markdown renderer that builds DOM nodes (never innerHTML), so
 // handoff text cannot inject markup. With opts.onCheck(line, checked, box),
-// "[ ]" items are clickable; line is the item's 0-based line in src.
+// "[ ]" items are clickable; line is the item's 0-based line in src. With
+// opts.ref(name, label), [[name]], [[name|label]] and @name may become links:
+// it returns a node, or null to keep the text.
 window.renderMarkdown = (function () {
   function el(tag, cls, text) {
     const n = document.createElement(tag);
@@ -10,7 +12,8 @@ window.renderMarkdown = (function () {
     return n;
   }
 
-  const inlineRe = /(`+)([\s\S]*?)\1|\*\*((?:[^*]|\*(?!\*))+)\*\*|__([^_]+)__|\*([^*\s][^*]*)\*|\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])/g;
+  const inlineRe = /(`+)([\s\S]*?)\1|\*\*((?:[^*]|\*(?!\*))+)\*\*|__([^_]+)__|\*([^*\s][^*]*)\*|\[\[([^\]|]+)(?:\|([^\]]+))?\]\]|\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])|(?<![\w@./-])@([a-z0-9](?:[a-z0-9._-]*[a-z0-9])?)/g;
+  let opts = {}; // of the render call in progress (inline reads ref)
 
   function inline(parent, text) {
     // matchAll iterates a copy of the regex: the recursion for bold/em
@@ -27,8 +30,12 @@ window.renderMarkdown = (function () {
         const i = el("em");
         inline(i, m[5]);
         parent.appendChild(i);
-      } else if (m[6]) parent.appendChild(link(m[6], m[7]));
-      else if (m[8]) parent.appendChild(link(m[8], m[8]));
+      } else if (m[6]) {
+        const name = m[6].trim(), label = (m[7] || m[6]).trim();
+        parent.appendChild((opts.ref && opts.ref(name, label)) || document.createTextNode(label));
+      } else if (m[8]) parent.appendChild(link(m[8], m[9]));
+      else if (m[10]) parent.appendChild(link(m[10], m[10]));
+      else if (m[11]) parent.appendChild((opts.ref && opts.ref(m[11], "@" + m[11])) || document.createTextNode(m[0]));
       last = m.index + m[0].length;
     }
     if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
@@ -43,8 +50,13 @@ window.renderMarkdown = (function () {
     return a;
   }
 
-  return function render(src, opts) {
-    opts = opts || {};
+  function render(src, o) {
+    const outer = opts;
+    opts = o || {};
+    try { return blocks(src); } finally { opts = outer; }
+  }
+
+  function blocks(src) {
     const root = el("div", "md");
     const lines = String(src || "").replace(/\r\n/g, "\n").split("\n");
     let i = 0;
@@ -90,7 +102,7 @@ window.renderMarkdown = (function () {
         flush();
         const q = [];
         while (i < lines.length && /^\s*>/.test(lines[i])) q.push(lines[i++].replace(/^\s*>\s?/, ""));
-        const bq = render(q.join("\n"));
+        const bq = blocks(q.join("\n"));
         const b = el("blockquote");
         while (bq.firstChild) b.appendChild(bq.firstChild);
         root.appendChild(b);
@@ -137,5 +149,6 @@ window.renderMarkdown = (function () {
     }
     flush();
     return root;
-  };
+  }
+  return render;
 })();

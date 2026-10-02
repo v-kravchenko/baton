@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.1.9
+
+- The dashboard writes: `+` in a project header starts a task with a short
+  form (title, a name suggested from it, goal, first step) or the full
+  editor, or a tip; a task panel has Edit (Markdown with preview and size
+  budget), Fork and, per history entry, Restore. Saves go through the same
+  store as `baton save` and are marked `by: dashboard`; a file changed
+  meanwhile by an agent or a sync is not overwritten.
+- Tips in the dashboard: Verified, Refuted (with the reason), Edit with a
+  diff before saving, and new tips with `origin: user`.
+- Next steps are a checklist (`1. [ ]`); ticking a step in the dashboard
+  rewrites the current handoff in place. `/handoff` drops ticked steps,
+  `/pickup` starts at the first unticked one.
+- Tips are listed newest first (live ones before superseded and refuted) in
+  `baton tips list` and the dashboard; before, verified ones came first and
+  same-day tips had no order.
+- `@task` and `[[name]]` in handoffs and tips link to tasks and tips; keys
+  `n`, `e`, `f`; the picked project is remembered; a repeated `# Title` at
+  the top of a handoff is not shown twice.
+- The dashboard is an installable app (manifest, icons, service worker).
+
 ## 0.1.8
 
 - `baton update` from a baton built on Termux (`android/arm64`) downloads

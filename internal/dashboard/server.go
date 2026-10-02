@@ -100,6 +100,8 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	static, _ := fs.Sub(webFS, "web")
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(static))))
+	mux.HandleFunc("GET /sw.js", asset("sw.js", "text/javascript; charset=utf-8"))
+	mux.HandleFunc("GET /manifest.webmanifest", asset("manifest.webmanifest", "application/manifest+json"))
 	mux.HandleFunc("GET /{$}", s.page("index.html", true))
 	mux.HandleFunc("GET /login", s.page("login.html", false))
 	mux.HandleFunc("GET /api/session", s.apiSession)
@@ -116,6 +118,7 @@ func (s *Server) Handler() http.Handler {
 	api("GET /api/projects/{p}/tasks/{t}/diff", s.apiDiff)
 	api("GET /api/template", s.apiTemplate)
 	api("POST /api/projects/{p}/tasks", s.apiCreate)
+	api("GET /api/projects/{p}/slug", s.apiSlug)
 	api("PUT /api/projects/{p}/tasks/{t}", s.apiSave)
 	api("POST /api/projects/{p}/tasks/{t}/history/{n}/restore", s.apiRevert)
 	api("POST /api/projects/{p}/tasks/{t}/check", s.apiCheck)
@@ -269,6 +272,21 @@ func (s *Server) page(name string, app bool) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
+		w.Write(data)
+	}
+}
+
+// asset serves a file from web/ at the root: a service worker controls only
+// the paths under its own.
+func asset(name, ctype string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		data, err := webFS.ReadFile("web/" + name)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", ctype)
+		w.Header().Set("Cache-Control", "no-cache")
 		w.Write(data)
 	}
 }

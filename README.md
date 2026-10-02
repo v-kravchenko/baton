@@ -272,7 +272,8 @@ The dashboard edits handoffs too, saving them like `baton save` (the
 previous text goes to history, `by: dashboard` marks the save, the title
 follows the first `# ` heading, branch and commit come from the project
 directory on this machine or stay as they were): `+` in a project header
-starts a task from the template, and a task panel has Edit, Fork (a new task
+starts a task with a short form (title, a name suggested from it, goal and a
+first step; Full editor continues with the whole template), and a task panel has Edit, Fork (a new task
 with `from` set, starting from the parent's text) and, per history entry,
 Restore (save that version as the current one). Checklist items (`1. [ ]`
 in Next steps) tick with a click; that rewrites the current handoff in
@@ -287,6 +288,15 @@ Tips are edited there as well: `+` offers Task or Tip (a new tip gets
 Verified, Refuted (asks for the reason), Edit and Delete. Edit changes the
 title, `when`, keywords and text, keeps the id and the other fields, and
 shows the diff before saving, since tips have no history.
+
+In a handoff or tip, `@task` links to a task of the same project and
+`[[name]]` (or `[[name|label]]`, as in Obsidian) to a task or else a tip of
+the project or global; unknown names stay text. Keys: `/` search, `n` new
+task in the picked project, `e` Edit and `f` Fork in the open panel. The
+picked project is remembered in the browser. The dashboard is an installable
+app (manifest and service worker; browsers allow it on https or localhost):
+the page and static files work offline from the last copy, the API is never
+cached.
 
 A project header shows the project directory on this machine and, when it is
 a git repository, an icon link to its `origin` remote (the first remote without

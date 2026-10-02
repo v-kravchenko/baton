@@ -319,6 +319,30 @@ func decodeSave(r *http.Request) (saveJSON, error) {
 	return in, nil
 }
 
+// apiSlug suggests a free task name for a title ("" when it has no letters).
+func (s *Server) apiSlug(w http.ResponseWriter, r *http.Request) (any, error) {
+	p, err := s.projectParam(r)
+	if err != nil {
+		return nil, err
+	}
+	words := tips.Words(r.URL.Query().Get("title"))
+	if words == "" {
+		return map[string]string{"task": ""}, nil
+	}
+	base, err := store.TaskName(words)
+	if err != nil {
+		base = words + "-task" // a Windows device name such as "con"
+	}
+	name := base
+	for i := 2; ; i++ {
+		if _, err := s.Store.Get(p, name); err != nil {
+			break
+		}
+		name = base + "-" + strconv.Itoa(i)
+	}
+	return map[string]string{"task": name}, nil
+}
+
 func (s *Server) apiTemplate(w http.ResponseWriter, r *http.Request) (any, error) {
 	return map[string]any{"body": store.Template, "max_chars": store.MaxChars, "max_line": store.MaxLine}, nil
 }
