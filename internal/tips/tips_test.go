@@ -52,6 +52,11 @@ func TestNewSearchStatuses(t *testing.T) {
 	if _, _, err := s.New(NewInput{Scope: "p", Body: "x", Origin: "guess", Title: "t"}); err == nil {
 		t.Error("bad origin accepted")
 	}
+	long := strings.Repeat("ж", MaxTitle+1)
+	_, warns, _ = newStore(t).New(NewInput{Scope: "p", Body: body, Title: long, Origin: "user", Keywords: strings.Fields("a b c d e f g h i")})
+	if len(warns) != 2 || !strings.Contains(warns[0], "71 characters") || !strings.HasPrefix(warns[1], "9 keywords") {
+		t.Errorf("budget warnings = %v", warns)
+	}
 
 	all, _ := s.List("p", "global")
 	res := Search(all, "locking files", Options{})

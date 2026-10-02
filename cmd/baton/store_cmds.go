@@ -157,6 +157,7 @@ func cmdSave(app *App, a *args) error {
 	if len(res.Missing) > 0 {
 		warns = append(warns, "missing sections: "+strings.Join(res.Missing, ", ")+" (see baton template)")
 	}
+	warns = append(warns, store.SizeWarnings(in.Body)...)
 	if a.bools["json"] {
 		return app.writeJSON(map[string]any{
 			"project": p, "handoff": toJSON(res.Handoff, false), "rotated": res.Rotated,

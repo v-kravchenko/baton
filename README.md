@@ -117,16 +117,18 @@ body on stdin and `--title`. Fields added by other tools (Obsidian `tags`,
 tip. Frontmatter is flat `key: value` lines; lists are `[a, b]` or block
 lists (`- a` lines under the key). Other multi-line values (nested maps,
 `|` / `>` blocks) are kept as written. The body follows the
-template printed by `baton template` (Goal, State, Decisions, Key context,
-Gotchas, User preferences, Next steps, Verify); `save` warns about missing
-sections. Markdown is read with `\r\n` or `\n` and always written with `\n`.
+template printed by `baton template` (Goal, State, Next steps, then the
+optional Decisions, Context, Verify); `save` warns about missing required
+sections and about a body over 3000 characters or with lines over 200
+characters (fenced code is not counted). Markdown is read with `\r\n` or `\n` and always written with `\n`.
 
 ### Tips
 
 Tip frontmatter: `title`, `when`, `keywords`, `cites` (`file@commit`),
-`origin` (`session`/`failure`/`web`), `source` (`[project, commit, date]`),
+`origin` (`session`/`failure`/`web`/`user`), `source` (`[project, commit, date]`),
 `status` (`active`/`verified`/`refuted`/`superseded`), `env` (`termux`,
-`darwin`, ...). Body: `Tip:`, `Why:`, `Verify:`.
+`darwin`, ...). Body: `Tip:`, `Why:`, `Verify:`. `tips new` warns about a title over 70
+characters or more than 8 keywords.
 
 Search scores keywords > title > when > body, matches simple word forms
 (English and Ukrainian endings, prefixes), hides refuted and superseded tips
@@ -135,9 +137,9 @@ query as error output: numbers and hashes are dropped and at least two terms
 must match.
 
 There are no agent hooks. Tips surface in two ways: `baton show` lists tips
-matching the task name, title and Gotchas section (titles only), and the
-installed instruction block plus the `/tips` skill tell the agent to run
-`baton tips search` before debugging.
+matching the task name, title and Context (or older Gotchas) section (titles
+only), and the installed instruction block plus the `/tips` skill tell the
+agent to run `baton tips search` before debugging.
 
 ## CLI
 

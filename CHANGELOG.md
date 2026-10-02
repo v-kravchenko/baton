@@ -1,9 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.1.8
 
 - `baton update` from a baton built on Termux (`android/arm64`) downloads
   the `linux_arm64` release instead of failing.
+- Shorter handoff template: Goal, State, Next steps (required), then the
+  optional Decisions, Context (was Key context and Gotchas), Verify; User
+  preferences is gone (stable ones become tips with `origin: user`).
+- `baton save` warns about a body over 3000 characters or lines over 200;
+  `tips new` about a title over 70 characters or more than 8 keywords.
+- `/handoff` asks for a glanceable handoff: current state instead of the
+  session story, nothing that git, CLAUDE.md, README or tips already hold.
 
 ## 0.1.7
 

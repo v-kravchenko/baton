@@ -22,13 +22,14 @@ func (app *App) tipScopes() []string {
 	return []string{store.Global}
 }
 
-// tipsForHandoff suggests tips matching the task name, title and Gotchas.
+// tipsForHandoff suggests tips matching the task name, title and Context
+// (Gotchas in handoffs written before 0.1.8).
 func (app *App) tipsForHandoff(p string, h *store.Handoff) []tipRef {
 	all, err := app.tipStore().List(p, store.Global)
 	if err != nil || len(all) == 0 {
 		return nil
 	}
-	q := strings.Join([]string{strings.ReplaceAll(h.Task, "-", " "), h.Title, store.Section(h.Body, "Gotchas")}, " ")
+	q := strings.Join([]string{strings.ReplaceAll(h.Task, "-", " "), h.Title, store.Section(h.Body, "Context"), store.Section(h.Body, "Gotchas")}, " ")
 	var out []tipRef
 	for _, r := range tips.Search(all, q, tips.Options{NoBody: true, MinScore: 4, Limit: 5}) {
 		out = append(out, tipRef{ID: r.Tip.ID, Title: r.Tip.Title, Scope: r.Tip.Scope})

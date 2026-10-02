@@ -33,6 +33,9 @@ root, without `cd`.
 2. If tips are listed, read the relevant ones with `baton tips show ID`.
    Tips are unverified: run their Verify step before relying on them.
 3. Run the cheap checks from the Verify section.
+   If the handoff lacks something you need (why a decision was made, an item
+   it dropped), `baton history task` lists earlier versions (1 = newest) and
+   `baton history task N` prints one. Only the last few are kept.
 4. Tell the user in a few lines: the goal, where things stand, what changed
    since the handoff, and the first next step. Then continue, unless the
    handoff or the user says to wait.

@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/v-kravchenko/baton/internal/fsutil"
 	"github.com/v-kravchenko/baton/internal/store"
@@ -24,8 +25,14 @@ const (
 	Superseded = "superseded"
 )
 
+// Size budget of a tip: New warns above it.
+const (
+	MaxTitle    = 70
+	MaxKeywords = 8
+)
+
 // Origins.
-var Origins = []string{"session", "failure", "web"}
+var Origins = []string{"session", "failure", "web", "user"}
 
 // Tip is one tip file.
 type Tip struct {
@@ -214,6 +221,13 @@ func (s *Store) New(in NewInput, lookup ...string) (*Tip, []string, error) {
 			warns = append(warns, "missing "+part)
 		}
 	}
+	if n := utf8.RuneCountInString(title); n > MaxTitle {
+		warns = append(warns, fmt.Sprintf("title is %d characters, budget %d", n, MaxTitle))
+	}
+	keywords := normalizeKeywords(pickList(in.Keywords, "keywords"))
+	if len(keywords) > MaxKeywords {
+		warns = append(warns, fmt.Sprintf("%d keywords, budget %d: keep the words an agent would search for", len(keywords), MaxKeywords))
+	}
 	commit := in.Commit
 	if commit == "" {
 		commit = "-"
@@ -226,7 +240,7 @@ func (s *Store) New(in NewInput, lookup ...string) (*Tip, []string, error) {
 	out := &store.Frontmatter{}
 	out.Set("title", title)
 	out.Set("when", pick(in.When, "when"))
-	out.SetList("keywords", normalizeKeywords(pickList(in.Keywords, "keywords")))
+	out.SetList("keywords", keywords)
 	out.SetList("cites", pickList(in.Cites, "cites"))
 	out.Set("origin", origin)
 	out.SetList("source", []string{project, commit, s.now().Format("2006-01-02")})

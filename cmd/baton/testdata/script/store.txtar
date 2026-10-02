@@ -25,7 +25,7 @@ stdout '## Goal'
 # Second save rotates; title carried over; missing sections warned.
 stdin $WORK/short.md
 exec baton save @main
-stderr 'missing sections: State, Decisions'
+stderr 'missing sections: State, Next steps \(see'
 exists $WORK/root/myapp/history/main/20261001T071500Z.md
 exec baton history main
 stdout '^1  2026-10-01 10:15  First try'
@@ -75,7 +75,7 @@ stdout 'warning: sync conflict'
 exec baton show $WORK/root/myapp/tasks/core.md
 stdout '@core: First try'
 exec baton template
-stdout '## User preferences'
+stdout '## Context'
 
 # Reserved name and bad task names.
 mkdir $WORK/src/global
@@ -93,18 +93,8 @@ stderr 'invalid task name'
 g
 ## State
 s
-## Decisions
-d
-## Key context
-k
-## Gotchas
-none
-## User preferences
-p
 ## Next steps
 n
-## Verify
-v
 -- short.md --
 ## Goal
 short

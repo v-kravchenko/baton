@@ -172,11 +172,26 @@ func TestMissingSections(t *testing.T) {
 	if len(m) != 0 {
 		t.Errorf("template misses %v", m)
 	}
-	if m := MissingSections("## goal\n## State\n"); len(m) != len(Sections)-2 {
+	if m := MissingSections("## goal\n## State\n"); len(m) != 1 || m[0] != "Next steps" {
 		t.Errorf("missing = %v", m)
 	}
-	if g := Section(Template, "gotchas"); !strings.HasPrefix(g, "Traps") {
+	if g := Section(Template, "context"); !strings.HasPrefix(g, "Optional.") {
 		t.Errorf("section = %q", g)
+	}
+}
+
+func TestSizeWarnings(t *testing.T) {
+	if w := SizeWarnings(Template); len(w) != 0 {
+		t.Errorf("template: %v", w)
+	}
+	// Cyrillic counts characters, not bytes; fenced code is not counted.
+	line := strings.Repeat("ж", MaxLine)
+	if w := SizeWarnings(line + "\n```\n" + strings.Repeat("x", 5000) + "\n```\n"); len(w) != 0 {
+		t.Errorf("within budget: %v", w)
+	}
+	w := SizeWarnings(strings.Repeat(line+"ж\n", 15))
+	if len(w) != 2 || !strings.Contains(w[0], "3031 characters") || !strings.HasPrefix(w[1], "15 lines") {
+		t.Errorf("over budget: %v", w)
 	}
 }
 

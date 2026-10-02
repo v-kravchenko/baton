@@ -1,43 +1,81 @@
 package store
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+	"unicode/utf8"
+)
 
-// Sections are the handoff template headings, in order.
-var Sections = []string{"Goal", "State", "Decisions", "Key context", "Gotchas", "User preferences", "Next steps", "Verify"}
+// Sections are the handoff template headings, in order. Required ones must
+// be present; the others are skipped when there is nothing to say.
+var (
+	Sections = []string{"Goal", "State", "Next steps", "Decisions", "Context", "Verify"}
+	Required = []string{"Goal", "State", "Next steps"}
+)
+
+// Size budget of a handoff body, in characters: save warns above it.
+const (
+	MaxChars = 3000
+	MaxLine  = 200
+)
 
 // Template is the handoff body template printed by `baton template`.
 const Template = `# <Short title of the task>
 
 ## Goal
-What the task is trying to achieve and why. One or two sentences.
+What the task achieves and why. One or two sentences.
 
 ## State
-Where the work stands: done, in progress, not started. Name files and
-functions (path:line) instead of pasting code.
-
-## Decisions
-Choices made and their reasons, including rejected alternatives, so the next
-session does not re-litigate them. Mark open decisions as OPEN.
-
-## Key context
-Facts the next session needs and cannot cheaply rediscover: constraints,
-commands, links, data shapes.
-
-## Gotchas
-Traps already hit: errors, dead ends, misleading docs, and how they were
-resolved.
-
-## User preferences
-How the user wants the work done (style, scope, tools, things to avoid).
+Where the work stands now, not the story of the session:
+- Done: what is finished and not yet visible in git (unpushed, unreleased).
+- In progress: what is half done, with path:line.
+- Blocked: what waits on whom.
 
 ## Next steps
-Ordered, concrete actions to continue with.
+1. Ordered, concrete actions. The first one is where the next session starts.
+- Later: parked items, one line each.
+
+## Decisions
+Optional. Choice and reason, one bullet each, so the next session does not
+re-litigate it. Mark open questions as OPEN.
+
+## Context
+Optional. Facts and traps the next session cannot cheaply rediscover:
+constraints, commands, errors hit and their fix.
 
 ## Verify
-Commands or checks that prove the current state (tests, builds, URLs).
+Optional. Commands that prove the state described above.
 `
 
-// MissingSections returns template sections absent from body (matched as
+// SizeWarnings reports a body over the size budget: too many characters or
+// lines too long to read at a glance. Fenced code blocks are not counted.
+func SizeWarnings(body string) []string {
+	var out []string
+	chars, long, fence := 0, 0, false
+	for _, l := range strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(l), "```") {
+			fence = !fence
+			continue
+		}
+		if fence {
+			continue
+		}
+		n := utf8.RuneCountInString(l)
+		chars += n + 1
+		if n > MaxLine {
+			long++
+		}
+	}
+	if chars > MaxChars {
+		out = append(out, fmt.Sprintf("handoff is %d characters, budget %d: drop what git, CLAUDE.md, README or tips already hold, and finished work", chars, MaxChars))
+	}
+	if long > 0 {
+		out = append(out, fmt.Sprintf("%d lines over %d characters: one fact per bullet", long, MaxLine))
+	}
+	return out
+}
+
+// MissingSections returns required sections absent from body (matched as
 // "## <name>" headings, case-insensitively).
 func MissingSections(body string) []string {
 	have := map[string]bool{}
@@ -47,7 +85,7 @@ func MissingSections(body string) []string {
 		}
 	}
 	var out []string
-	for _, s := range Sections {
+	for _, s := range Required {
 		if !have[strings.ToLower(s)] {
 			out = append(out, s)
 		}
