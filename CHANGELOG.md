@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+- Dashboard: fenced code blocks are highlighted (go, js/ts, sh, py, json,
+  yaml, java, kotlin, diff). Vendored speed-highlight core 2.1.0 (CC0) plus
+  a small Kotlin grammar in `internal/dashboard/web/shj/`; the `hl.js` bridge
+  keeps the never-innerHTML model. Unknown languages stay plain.
+
 ## 0.2.0
 
 - Docs are attached to a task: `<root>/<project>/docs/<task>/<id>.md`. They

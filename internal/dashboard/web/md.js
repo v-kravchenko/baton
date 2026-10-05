@@ -15,6 +15,17 @@ window.renderMarkdown = (function () {
   const inlineRe = /(`+)([\s\S]*?)\1|\*\*((?:[^*]|\*(?!\*))+)\*\*|__([^_]+)__|\*([^*\s][^*]*)\*|\[\[([^\]|]+)(?:\|([^\]]+))?\]\]|\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])|(?<![\w@./-])@([a-z0-9](?:[a-z0-9._-]*[a-z0-9])?)/g;
   let opts = {}; // of the render call in progress (inline reads ref)
 
+  // Code highlighting is progressive: blocks render plain (textContent, never
+  // innerHTML) with a data-lang, then hl.js (vendored speed-highlight) colors
+  // them in place. A failed import only loses colors, never content.
+  let hlP = null;
+  function hlLater(root) {
+    try {
+      hlP = hlP || import("/static/hl.js");
+      hlP.then((m) => { try { m.enhance(root); } catch (e) { /* plain */ } }, () => {});
+    } catch (e) { /* old browser: stay plain */ }
+  }
+
   function inline(parent, text) {
     // matchAll iterates a copy of the regex: the recursion for bold/em
     // would otherwise move a shared lastIndex and loop forever.
@@ -53,7 +64,11 @@ window.renderMarkdown = (function () {
   function render(src, o) {
     const outer = opts;
     opts = o || {};
-    try { return blocks(src); } finally { opts = outer; }
+    try {
+      const root = blocks(src);
+      hlLater(root);
+      return root;
+    } finally { opts = outer; }
   }
 
   function blocks(src) {
@@ -80,7 +95,11 @@ window.renderMarkdown = (function () {
         while (i < lines.length && !lines[i].trim().startsWith(fence)) body.push(lines[i++]);
         i++;
         const pre = el("pre");
-        pre.appendChild(el("code", m[2] ? "lang-" + m[2].replace(/[^\w-]/g, "") : null, body.join("\n")));
+        const info = (m[2] || "").replace(/[^\w-]/g, "");
+        const code = el("code", info ? "lang-" + info : null);
+        if (info) code.setAttribute("data-lang", info);
+        code.textContent = body.join("\n");
+        pre.appendChild(code);
         root.appendChild(pre);
         continue;
       }
