@@ -252,7 +252,7 @@ code.manual { display: block; margin-top: 8px; padding: 4px 8px; overflow-x: aut
 .hrow { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); }
 .hrow .age { margin-left: 0; min-width: 52px; }
 .htitle { flex: 1; font-size: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hbtns { display: inline-flex; gap: 4px; }
+.hbtns { flex: none; }
 .hrow button { padding: 4px 10px; font-size: 13px; }
 .hrow button[aria-pressed="true"] { background: var(--accentbg); border-color: transparent; color: var(--accent); }
 .hpanel { padding: 4px 0 8px; border-bottom: 1px solid var(--line); }
@@ -278,6 +278,8 @@ pre.diff .hunk { color: var(--accent); }
 #pbody .bgroup > button + button { border-left: 1px solid var(--line); }
 #pbody .bgroup > button:hover { background: var(--code); }
 #pbody .bgroup > button.ok { color: var(--ok); }
+#pbody .bgroup > button.primary { color: var(--accent); background: var(--accentbg); }
+#pbody .bgroup > button:disabled { opacity: .6; }
 #pbody .bgroup > button:focus-visible { outline-offset: -2px; }
 @media (max-width: 520px) { #pbody .bgroup .lbl { display: none; } #pbody .bgroup > button { padding: 6px 10px; } }
 /* A link shaped like a button (Obsidian); colours come from .agents .ghost. */

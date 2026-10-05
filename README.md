@@ -89,9 +89,11 @@ dashboard), on every OS; it has no `paths` entry.
 │   ├── tasks/<task>.md               # latest handoff of a task
 │   ├── archive/<task>.md             # finished tasks
 │   ├── history/<task>/<created>.md   # previous handoffs (keep-N)
-│   └── tips/<id>.md                  # project tips
+│   ├── tips/<id>.md                  # project tips
+│   └── docs/<id>.md                  # project docs
 └── global/
-    └── tips/<id>.md                  # global tips
+    ├── tips/<id>.md                  # global tips
+    └── docs/<id>.md                  # global docs
 ```
 
 History file names are the `created` time in UTC (`20261001T071500Z.md`).
@@ -148,6 +150,21 @@ matching the task name, title and Context (or older Gotchas) section (titles
 only), and the installed instruction block plus the `/tips` skill tell the
 agent to run `baton tips search` before debugging.
 
+### Docs
+
+Docs hold longer, stable text that a handoff should not rewrite every
+session: a plan or rules the user gave, an agreement, a spec. A handoff links
+one with `[[id]]`; `baton show` lists the linked docs (titles only) and
+`docs show` lists the tasks that link to a doc (`used by`). The installed
+skills tell agents to change a doc only with the user's consent.
+
+Doc frontmatter: `title`, `created`, `updated`. The body is free Markdown; `docs new`
+and `docs edit` warn above 8000 characters. The id is a slug of the title
+(or `--id`) and never a task or tip name of the scope, since `[[name]]` finds
+a task first. Docs have no history and no status: `docs edit` rewrites the
+file (`--expect` refuses it when the file changed since that version), and a
+doc that is no longer needed is deleted.
+
 ## CLI
 
 The project directory is the current directory or `--dir`. Every read command
@@ -157,12 +174,14 @@ a non-zero exit means a real error.
 
 ```text
 baton save [@task] [--from PARENT] [--title T]   # body on stdin
-baton show [@task|FILE]                          # handoff + staleness + forks + tips, or a STATE line
+baton show [@task|FILE]                          # handoff + staleness + forks + docs + tips, or a STATE line
 baton tasks | done TASK | restore TASK | rename OLD NEW | history TASK [N] | stale FILE|@task
 baton pickup [PROJECT] [@task] [PROMPT] [--agent X] [--print]
 baton path set KEY DIR | list | prune
 baton tips search [--error] [--all] WORDS | show ID | new [--global] | verified ID |
            refuted ID WHY | supersede OLD NEW | move ID global|project | list [--all]
+baton docs [list] | show ID | new [--global] [--id ID] [--title T] |
+           edit ID [--title T] [--expect VER] | delete ID
 baton dashboard [--port N] [--host H] [--no-open] [--background|--stop] [--json]
 baton service install|status|restart|uninstall [--dry-run]
 baton auth status|on|off|password|logout-all
@@ -177,11 +196,13 @@ baton version
   none, and fails when there are several. Saving an archived task makes it
   active again. The previous handoff moves to `history/`, keeping `keep`
   entries.
-- Commands that read stdin (`save`, `tips new`, `tips search --error`) exit 2
+- Commands that read stdin (`save`, `docs new`, `docs edit`, `tips new`, `tips search --error`) exit 2
   with a hint when stdin is a terminal instead of waiting for input.
 - `show` states: `CHOOSE TASK` (several tasks, none given), `NO TASK` (the
   task does not exist), `ARCHIVED` (the task is done), `NO HANDOFF` (nothing
   active).
+- `docs new` and `docs edit` read the body on stdin; it may start with
+  frontmatter (`title`, `status`), flags win.
 - `tips new` reads the tip on stdin; frontmatter fields may come from stdin or
   from `--title --when --keywords --cites --origin --env`.
 
@@ -298,9 +319,15 @@ Verified, Refuted (asks for the reason), Edit and Delete. Edit changes the
 title, `when`, keywords and text, keeps the id and the other fields, and
 shows the diff before saving, since tips have no history.
 
-In a handoff or tip, `@task` links to a task of the same project and
-`[[name]]` (or `[[name|label]]`, as in Obsidian) to a task or else a tip of
-the project or global; unknown names stay text. Keys: `/` search, `n` new
+Docs have a Docs tab next to Tasks and Tips (global docs sit with the global
+tips), and `+` offers Doc as well. A doc panel shows the
+tasks that link to it, with Copy, Edit and
+Delete; Edit saves without a diff, and a file changed in the meantime is not
+overwritten.
+
+In a handoff, doc or tip, `@task` links to a task of the same project and
+`[[name]]` (or `[[name|label]]`, as in Obsidian) to a task, else a doc, else a
+tip of the project or global; unknown names stay text. Keys: `/` search, `n` new
 task in the picked project, `e` Edit, `f` Fork and `c` Copy in the open panel. The
 picked project is remembered in the browser. The dashboard is an installable
 app (manifest and service worker; browsers allow it on https or localhost):

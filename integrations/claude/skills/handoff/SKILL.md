@@ -13,7 +13,7 @@ Current tasks of this project:
 
 All state lives behind the `baton` CLI. Run it from the project root as is,
 without `cd`. Never write files under the baton root yourself: pass bodies to
-`baton save` and `baton tips new` on stdin.
+`baton save`, `baton docs new|edit` and `baton tips new` on stdin.
 
 ## 1. Pick the task
 
@@ -48,6 +48,8 @@ The reader is the next agent and the user scanning it. Write for a glance:
   (CLAUDE.md, README), tips (name the tip ID instead). A stable user
   preference that is not specific to this task becomes a tip with
   `origin: user`, not a handoff line.
+- Longer stable text (a plan or rules the user gave, an agreement, a spec)
+  goes into a doc (step 4); the handoff keeps one line with `[[doc-id]]`.
 
 Good: `- update: TLS fails on Termux, fix in internal/update/http.go:40 (not started)`
 Bad: `- This session we looked into update and found that on Termux, because the
@@ -65,7 +67,32 @@ HANDOFF
 baton adds frontmatter, git branch/commit, history and the project path. If it
 warns about missing sections or the size budget, fix the body and save again.
 
-## 4. Tips
+## 4. Docs
+
+A doc holds text that should not be rewritten every session. Make one when:
+
+- the user gave a plan, a workflow, rules or an agreement: copy their words
+  as is;
+- a section has stayed the same for two handoffs and is over ~10 lines;
+- several tasks need the same text.
+
+Check `baton docs list` first. Write the doc, then replace the section in
+the handoff with a line such as `Workflow: [[migration-workflow]]`:
+
+```bash
+baton docs new <<'DOC'
+---
+title: Migration workflow
+---
+1. ...
+DOC
+```
+
+Never change a doc without the user's consent. A small fix:
+`baton docs edit ID` (the full new body on stdin); a doc that is no longer
+needed: `baton docs delete ID`, and drop its links.
+
+## 5. Tips
 
 For each non-obvious trap of this session that would help other sessions (a
 misleading error, a flag that does not work, an environment quirk):

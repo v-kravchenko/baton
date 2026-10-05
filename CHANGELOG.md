@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.12
+
+- Docs: longer, stable text of a project (a plan or rules from the user,
+  an agreement) in `<root>/<project>/docs/<id>.md`, linked from a handoff
+  with `[[id]]`. `baton docs list|show|new|edit|delete`; `baton show` lists
+  the linked docs and `docs show` the tasks that use a doc. No history or
+  status; an edit checks the file version.
+- Dashboard: a Docs tab, Doc in `+`, a doc panel with Copy, Edit and
+  Delete; `[[id]]` opens a task, else a doc, else a tip. Every panel and
+  form button row is one button group.
+- `/handoff` moves user plans and long unchanged sections into docs;
+  `/pickup` reads the linked docs.
+
 ## 0.1.11
 
 - The project `home` always lives in the home directory of the machine at

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/v-kravchenko/baton/internal/config"
+	"github.com/v-kravchenko/baton/internal/docs"
 	"github.com/v-kravchenko/baton/internal/store"
 	"github.com/v-kravchenko/baton/internal/tips"
 )
@@ -38,6 +39,7 @@ type Server struct {
 	Dirs    config.Dirs
 	Store   *store.Store
 	Tips    *tips.Store
+	Docs    *docs.Store
 	Auth    *Auth
 	Version string
 
@@ -71,7 +73,8 @@ func (s *Server) cfg() config.Config {
 
 // New builds a server from config.
 func New(cfg config.Config, dirs config.Dirs, st *store.Store, ts *tips.Store, version string) *Server {
-	s := &Server{Cfg: cfg, Dirs: dirs, Store: st, Tips: ts, Version: version}
+	s := &Server{Cfg: cfg, Dirs: dirs, Store: st, Tips: ts, Version: version,
+		Docs: &docs.Store{Root: ts.Root, LockDir: ts.LockDir, Now: ts.Now}}
 	s.Auth = &Auth{StateDir: dirs.State, Idle: cfg.AuthIdle, Max: cfg.AuthMax, Now: st.Now}
 	s.localCSRF = randomToken()
 	s.hostnames = map[string]bool{"localhost": true}
@@ -132,6 +135,11 @@ func (s *Server) Handler() http.Handler {
 	api("POST /api/tips/{scope}/{id}/verified", s.apiTipVerified)
 	api("POST /api/tips/{scope}/{id}/refuted", s.apiTipRefuted)
 	api("DELETE /api/tips/{scope}/{id}", s.apiTipDelete)
+	api("GET /api/docs", s.apiDocs)
+	api("GET /api/docs/{scope}/{id}", s.apiDoc)
+	api("POST /api/docs", s.apiDocNew)
+	api("PUT /api/docs/{scope}/{id}", s.apiDocEdit)
+	api("DELETE /api/docs/{scope}/{id}", s.apiDocDelete)
 	api("GET /api/search", s.apiSearch)
 	return s.guard(mux)
 }

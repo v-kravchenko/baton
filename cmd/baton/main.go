@@ -47,6 +47,8 @@ func init() {
 		"version":  {cmdVersion, nil, "baton version"},
 		"tips": {cmdTips, map[string]bool{"error": false, "all": false, "global": false, "title": true, "when": true,
 			"keywords": true, "cites": true, "origin": true, "env": true}, "baton tips search|list|show|new|verified|refuted|supersede|move"},
+		"docs": {cmdDocs, map[string]bool{"global": false, "id": true, "title": true,
+			"expect": true}, "baton docs list|show|new|edit|delete"},
 		"path":   {cmdPath, nil, "baton path set KEY DIR | list | prune"},
 		"pickup": {cmdPickup, map[string]bool{"agent": true, "print": false}, "baton pickup [PROJECT] [@task] [PROMPT] [--agent X] [--print]"},
 		"dashboard": {cmdDashboard, map[string]bool{"port": true, "host": true, "no-open": false, "background": false, "stop": false},
@@ -67,6 +69,8 @@ usage:
   baton path set KEY DIR | list | prune
   baton tips search [--error] WORDS | show ID | new [--global] | verified ID |
              refuted ID WHY | supersede OLD NEW | move ID global|project | list
+  baton docs [list] | show ID | new [--global] [--id ID] [--title T] |
+             edit ID [--expect VER] | delete ID     body from stdin
   baton dashboard [--port N] [--host H] [--no-open] [--background|--stop]
   baton service install|status|restart|uninstall [--dry-run]
   baton auth status|on|off|password|logout-all

@@ -5,10 +5,11 @@
   // open: key of the item in the panel; proj: the sidebar pick.
   const state = { q: "", archOpen: [], tab: {}, open: null, globalOpen: false, proj: "all" };
   let session = null;
-  // data: { root, home, projects: [{ key, dir, updated, conflicts, tasks, tips }], global: [tips] }
+  // data: { root, home, projects: [{ key, dir, updated, conflicts, tasks, tips, docs }], global: [tips], gdocs: [docs] }
   let data = null;
   let hits = new Map(); // full-text search: task key -> snippet
   let tipHits = new Set(); // full-text search: tip key
+  let docHits = new Set(); // full-text search: doc key
   const GLOBAL = "global";
 
   function el(tag, cls, text) {
@@ -123,6 +124,18 @@
     if (label) b.appendChild(el("span", "lbl", label));
     return b;
   }
+  // A joined group of panel buttons (Edit, Delete, ...): one look everywhere.
+  function bgroup() {
+    const g = el("div", "bgroup");
+    g.setAttribute("role", "group");
+    return g;
+  }
+  // A form's Save/Cancel group in an .actions row.
+  function actions(group) {
+    const row = el("div", "actions");
+    row.appendChild(group);
+    return row;
+  }
   // Opens the file in the Obsidian app, next to the agent buttons; the API
   // sends the link only with obsidian.vault in the config.
   function obsidianLink(url) {
@@ -170,6 +183,7 @@
   const taskPath = (t) => `/api/projects/${enc(t.project)}/tasks/${enc(t.task)}`;
   const keyOf = (t) => t.project + "|" + t.task;
   const tipKey = (tip) => tip.scope + "|" + tip.id;
+  const docKey = (doc) => "d:" + doc.scope + "|" + doc.id;
   const command = (t) => "baton pickup " + t.project + " @" + t.task;
 
   async function copy(text, btn, codeEl, label) {
@@ -392,18 +406,20 @@
     return window.renderMarkdown(body.slice(cut.length), { ref: refs(project), onCheck: onCheck && ((n, on, box) => onCheck(n + skip, on, box)) });
   }
 
-  // Links in a text of project: @name to a task there, [[name]] to a task or
-  // else a tip (the project's, then global). Unknown names stay text.
+  // Links in a text of project: @name to a task there, [[name]] to a task,
+  // else a doc, else a tip (the project's, then global). Unknown names stay text.
   function refs(project) {
     return (name, label) => {
       const p = projectOf(project);
       const x = p && p.tasks.find((t) => t.task === name);
-      const tip = !x && label !== "@" + name && (p ? p.tips : []).concat(data.global).find((t) => t.id === name);
-      if (!x && !tip) return null;
+      const wiki = !x && label !== "@" + name;
+      const doc = wiki && (p ? p.docs : []).concat(data.gdocs).find((d) => d.id === name);
+      const tip = wiki && !doc && (p ? p.tips : []).concat(data.global).find((t) => t.id === name);
+      if (!x && !doc && !tip) return null;
       const a = el("a", "ref" + (x && x.archived ? " done" : ""), label);
       a.href = "#";
-      a.title = x ? "@" + x.task + ": " + x.title + " (" + statusText(x) + ")" : "tip: " + tip.title;
-      a.addEventListener("click", (e) => { e.preventDefault(); x ? openTask(x) : openTip(tip); });
+      a.title = x ? "@" + x.task + ": " + x.title + " (" + statusText(x) + ")" : doc ? "doc: " + doc.title : "tip: " + tip.title;
+      a.addEventListener("click", (e) => { e.preventDefault(); x ? openTask(x) : doc ? openDoc(doc) : openTip(tip); });
       return a;
     };
   }
@@ -421,8 +437,7 @@
     const bar = el("div", "dbar");
     bar.appendChild(tabs);
     // One joined group of buttons, right of the tabs.
-    const group = el("div", "bgroup");
-    group.setAttribute("role", "group");
+    const group = bgroup();
     actions.forEach((a) => group.appendChild(a));
     bar.appendChild(group);
     const crumbs = gitCrumbs(d.handoff);
@@ -453,7 +468,7 @@
         a.title = when(v.created);
         row.appendChild(a);
         row.appendChild(rich("span", "htitle", (n ? "" : "current · ") + v.title));
-        const btns = el("span", "hbtns");
+        const btns = el("span", "bgroup hbtns");
         const panel = el("div", "hpanel");
         panel.hidden = true;
         const toggle = (btn, loader) => {
@@ -702,13 +717,13 @@
     };
     ta.addEventListener("input", count);
     count();
-    const row = el("div", "actions");
+    const row = bgroup();
     const save = el("button", "primary", "Save");
     save.title = "save (Ctrl+S)";
     const cancel = el("button", "", "Cancel");
     row.appendChild(save);
     row.appendChild(cancel);
-    box.appendChild(row);
+    box.appendChild(actions(row));
     const start = o.text, startName = o.name;
     dirty = () => ta.value !== start || (name !== null && name.value !== startName);
     async function doSave() {
@@ -787,10 +802,11 @@
       })).catch(failed(box));
       const startTask = () => (parent ? startEditor() : template().then(() => quickForm(box, project, startEditor)).catch(failed(box)));
       const startTip = () => template().then(() => tipForm(box, { scope: project })).catch(failed(box));
+      const startDoc = () => docForm(box, { scope: project });
       if (!parent) {
         const tabs = el("div", "seg tabs newkind");
         tabs.setAttribute("role", "tablist");
-        [["Task", startTask], ["Tip", startTip]].forEach(([label, start], i) => {
+        [["Task", startTask], ["Doc", startDoc], ["Tip", startTip]].forEach(([label, start], i) => {
           const b = el("button", "", label);
           b.setAttribute("role", "tab");
           b.setAttribute("aria-selected", String(!i));
@@ -826,14 +842,14 @@
     const inputs = [title, name, goal, step];
     const msg = el("div");
     box.appendChild(msg);
-    const row = el("div", "actions");
+    const row = bgroup();
     const create = el("button", "primary", "Create");
     create.title = "create the task (Enter)";
     const more = el("button", "", "Full editor");
     more.title = "continue in the editor with the whole template";
     const cancel = el("button", "", "Cancel");
     [create, more, cancel].forEach((b) => row.appendChild(b));
-    box.appendChild(row);
+    box.appendChild(actions(row));
     dirty = () => inputs.some((i) => i.value.trim());
 
     let auto = true, seq = 0, timer = 0;
@@ -924,13 +940,13 @@
     const msg = el("div");
     box.appendChild(msg);
     box.appendChild(ta);
-    const row = el("div", "actions");
+    const row = bgroup();
     const save = el("button", "primary", t ? "Review" : "Save");
     save.title = t ? "show the changes before saving (Ctrl+S)" : "save (Ctrl+S)";
     const cancel = el("button", "", "Cancel");
     row.appendChild(save);
     row.appendChild(cancel);
-    box.appendChild(row);
+    box.appendChild(actions(row));
     const inputs = [title, whenIn, kw, ta];
     const start = inputs.map((i) => i.value).join("\0");
     dirty = () => inputs.map((i) => i.value).join("\0") !== start;
@@ -1014,6 +1030,8 @@
       meta("Superseded by", d.superseded_by);
       const row = el("div", "actions");
       row.appendChild(el("div", "file", t.scope + "/" + t.id));
+      const group = bgroup();
+      row.appendChild(group);
       const mark = async (btn, path, body) => {
         btn.disabled = true;
         try { tipSaved(await api(tipPath(t) + path, { method: "POST", body })); } catch (e) { btn.disabled = false; alert("Failed: " + e.message); }
@@ -1022,7 +1040,7 @@
         const ok = ibtn("check", "Verified");
         ok.title = "its Verify step passed (like baton tips verified)";
         ok.addEventListener("click", () => mark(ok, "/verified"));
-        row.appendChild(ok);
+        group.appendChild(ok);
       }
       if (t.status !== "refuted") {
         const no = ibtn("ban", "Refuted");
@@ -1031,13 +1049,13 @@
           const why = prompt("Why is " + t.id + " wrong?");
           if (why && why.trim()) mark(no, "/refuted", { why: why.trim() });
         });
-        row.appendChild(no);
+        group.appendChild(no);
       }
       const edit = ibtn("edit", "Edit");
       edit.title = "edit the title, when, keywords and text (e)";
       edit.dataset.hotkey = "e";
       edit.addEventListener("click", () => template().then(() => tipForm(box, { tip: t, version: d.version })).catch((e) => alert("Failed: " + e.message)));
-      row.appendChild(edit);
+      group.appendChild(edit);
       const del = ibtn("trash", "Delete");
       del.title = "delete the tip file";
       del.addEventListener("click", async () => {
@@ -1049,7 +1067,7 @@
           await load();
         } catch (e) { del.disabled = false; alert("Failed: " + e.message); }
       });
-      row.appendChild(del);
+      group.appendChild(del);
       box.appendChild(row);
       if (notice && notice.key === "p:" + tipKey(t)) {
         const n = el("div", "note");
@@ -1065,6 +1083,172 @@
     const rank = (t) => (t.status === "active" || t.status === "verified" ? 0 : 1);
     const at = (t) => Date.parse(tipDate(t)) || 0;
     return tips.slice().sort((a, b) => rank(a) - rank(b) || at(b) - at(a)).map((t) => tipCard(t, where, h));
+  }
+
+  // ---- docs ---------------------------------------------------------------
+
+  // Docs: plans, rules and agreements a handoff links with [[id]]. No
+  // history, status or diff: a save checks the version, a changed file is a 409.
+  const docPath = (doc) => `/api/docs/${enc(doc.scope)}/${enc(doc.id)}`;
+  function docChips(doc) {
+    const cs = el("span", "chips");
+    if (doc.scope === GLOBAL) cs.appendChild(chip("global"));
+    return cs;
+  }
+  function openDoc(doc) {
+    const g = doc.scope === GLOBAL;
+    openPanel(docKey(doc), g ? 200 : hue(doc.scope), g ? globalWho : projectWho(doc.scope), (body) => docPanel(doc, body));
+  }
+  async function docSaved(r) {
+    dirty = null;
+    if (r.warnings && r.warnings.length) notice = { key: docKey(r.doc), warnings: r.warnings };
+    await load();
+    openDoc(r.doc);
+  }
+  function docCard(doc) {
+    const c = el("div", "item");
+    c.dataset.key = docKey(doc);
+    const [head] = cardHead(doc.title, doc.id, docChips(doc), doc.updated, "updated " + when(doc.updated), [arrow()]);
+    c.appendChild(head);
+    opener(head, () => openDoc(doc));
+    return c;
+  }
+  // Newest update first.
+  function docsList(docs) {
+    return docs.slice().sort((a, b) => (b.updated > a.updated ? 1 : -1)).map(docCard);
+  }
+  function selectField(box, label, values, value) {
+    const l = el("label", "field");
+    l.appendChild(el("span", "", label));
+    const s = el("select", "ename");
+    values.forEach(([v, text]) => {
+      const op = el("option", "", text);
+      op.value = v;
+      s.appendChild(op);
+    });
+    s.value = value;
+    l.appendChild(s);
+    box.appendChild(l);
+    return s;
+  }
+  // o: { doc, version } to edit, or { scope } (a project) for a new one.
+  function docForm(box, o) {
+    box.textContent = "";
+    const d = o.doc;
+    const scope = d ? null : selectField(box, "Scope", [[o.scope, "project " + o.scope], [GLOBAL, "global: every project"]], o.scope);
+    const title = field(box, "Title", d ? d.title : "");
+    const tabs = el("div", "seg tabs");
+    tabs.setAttribute("role", "tablist");
+    const tab = (text) => { const b = el("button", "", text); b.setAttribute("role", "tab"); tabs.appendChild(b); return b; };
+    const write = tab("Edit"), look = tab("Preview");
+    const bar = el("div", "dbar");
+    bar.appendChild(tabs);
+    box.appendChild(bar);
+    const ta = el("textarea", "editor mono");
+    ta.value = d ? d.body : "";
+    ta.spellcheck = false;
+    ta.setAttribute("aria-label", "Doc Markdown");
+    const view = el("div", "preview");
+    const msg = el("div");
+    box.appendChild(msg);
+    box.appendChild(ta);
+    box.appendChild(view);
+    const pick = (b) => {
+      [write, look].forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+      ta.hidden = b !== write;
+      view.hidden = b === write;
+      if (b === look) { view.textContent = ""; view.appendChild(window.renderMarkdown(ta.value, { ref: refs(scope ? scope.value : d.scope) })); }
+    };
+    write.addEventListener("click", () => { pick(write); ta.focus(); });
+    look.addEventListener("click", () => pick(look));
+    pick(write);
+    const row = bgroup();
+    const save = el("button", "primary", "Save");
+    save.title = "save (Ctrl+S)";
+    const cancel = el("button", "", "Cancel");
+    row.appendChild(save);
+    row.appendChild(cancel);
+    box.appendChild(actions(row));
+    const inputs = [title, ta];
+    const start = inputs.map((i) => i.value).join("\0");
+    dirty = () => inputs.map((i) => i.value).join("\0") !== start;
+    const payload = () => ({ title: title.value, body: ta.value });
+    async function doSave() {
+      if (save.disabled) return;
+      save.disabled = true;
+      try {
+        if (!d) await docSaved(await api("/api/docs", { method: "POST", body: Object.assign({ scope: scope.value }, payload()) }));
+        else await docSaved(await api(docPath(d), { method: "PUT", body: Object.assign({ version: o.version }, payload()) }));
+      } catch (e) {
+        msg.textContent = "";
+        msg.appendChild(el("div", "note", e.status === 409 ? "The doc changed since you opened it; copy your text, cancel and reopen it." : "Not saved: " + e.message));
+      } finally { save.disabled = false; }
+    }
+    save.addEventListener("click", doSave);
+    onSaveKey([title, ta], doSave);
+    cancel.addEventListener("click", () => { if (leaveEditor()) (d ? openDoc(d) : closePanel()); });
+    title.focus();
+  }
+  function docPanel(doc, body) {
+    panelHead(body, doc.title, doc.id, docChips(doc), doc.updated, "updated " + when(doc.updated));
+    const box = el("div", "details");
+    box.textContent = "Loading…";
+    body.appendChild(box);
+    api(docPath(doc)).then((r) => {
+      const d = r.doc;
+      box.textContent = "";
+      if (r.obsidian) {
+        const row = el("div", "agents");
+        row.appendChild(obsidianLink(r.obsidian));
+        box.appendChild(row);
+      }
+      // Used by @task, @task: the tasks whose handoff links the doc.
+      const p = projectOf(d.scope);
+      const used = (d.used_by || []).map((n) => p && p.tasks.find((t) => t.task === n)).filter(Boolean);
+      if (used.length) {
+        const cs = el("div", "chips");
+        used.forEach((t) => cs.appendChild(taskLink(chip("@" + t.task, "link", "used by: " + t.title + " (" + statusText(t) + ")"), t)));
+        box.appendChild(cs);
+      }
+      box.appendChild(window.renderMarkdown(d.body || "", { ref: refs(d.scope) }));
+      const row = el("div", "actions");
+      row.appendChild(el("div", "file", d.scope + "/docs/" + d.id));
+      const group = bgroup();
+      row.appendChild(group);
+      const cp = ibtn("copy", "Copy", "copy");
+      cp.title = "copy the doc Markdown (c)";
+      cp.dataset.hotkey = "c";
+      const text = el("pre", "manual");
+      text.hidden = true;
+      cp.addEventListener("click", () => { text.textContent = d.body; copy(d.body, cp, text, "Copy"); });
+      group.appendChild(cp);
+      const edit = ibtn("edit", "Edit");
+      edit.title = "edit the doc (e); it has no history";
+      edit.dataset.hotkey = "e";
+      edit.addEventListener("click", () => docForm(box, { doc: d, version: r.version }));
+      group.appendChild(edit);
+      const del = ibtn("trash", "Delete");
+      del.title = "delete the doc file";
+      del.addEventListener("click", async () => {
+        if (!confirm("Delete doc " + d.id + "?" + (used.length ? " It is linked from @" + used.map((t) => t.task).join(", @") + "." : ""))) return;
+        del.disabled = true;
+        try {
+          await api(docPath(d), { method: "DELETE" });
+          closePanel();
+          await load();
+        } catch (e) { del.disabled = false; alert("Failed: " + e.message); }
+      });
+      group.appendChild(del);
+      box.appendChild(row);
+      box.appendChild(text);
+      if (notice && notice.key === docKey(d)) {
+        const n = el("div", "note");
+        n.appendChild(el("strong", "", "Saved with warnings"));
+        notice.warnings.forEach((w) => n.appendChild(el("div", "", w)));
+        box.insertBefore(n, box.firstChild);
+      }
+      notice = null;
+    }).catch(failed(box));
   }
 
   // ---- task trees ---------------------------------------------------------
@@ -1150,7 +1334,7 @@
     const nav = $("#nav"), sel = $("#navsel");
     nav.textContent = "";
     sel.textContent = "";
-    const n = (r) => (searching ? r.tasks.length + r.ptips.length : r.act.length);
+    const n = (r) => (searching ? r.tasks.length + r.ptips.length + r.pdocs.length : r.act.length);
     const add = (v, label, num, lead, title) => {
       const b = el("button", "nitem");
       b.appendChild(lead);
@@ -1185,6 +1369,7 @@
       [t.task, t.title, t.project].some((f) => f && f.toLowerCase().includes(q));
     const tipMatches = (t) => !q || tipHits.has(tipKey(t)) ||
       [t.id, t.title, t.when, (t.keywords || []).join(" ")].some((f) => f && f.toLowerCase().includes(q));
+    const docMatches = (d) => !q || docHits.has(docKey(d)) || [d.id, d.title].some((f) => f && f.toLowerCase().includes(q));
     $("#ver").textContent = "baton " + ((session && session.version) || "");
     $("#root").textContent = tilde(data.root);
 
@@ -1195,13 +1380,14 @@
     // Projects with something to show (a search hides the rest, in the sidebar too).
     const rows = data.projects.map((p) => {
       const tasks = p.tasks.filter(matches);
-      return { p, tasks, ptips: p.tips.filter(tipMatches), act: tasks.filter((t) => !t.archived) };
-    }).filter((r) => r.tasks.length || r.ptips.length || (!q && r.p.conflicts.length));
+      return { p, tasks, ptips: p.tips.filter(tipMatches), pdocs: p.docs.filter(docMatches), act: tasks.filter((t) => !t.archived) };
+    }).filter((r) => r.tasks.length || r.ptips.length || r.pdocs.length || (!q && r.p.conflicts.length));
     const gtips = data.global.filter(tipMatches);
+    const gdocs = data.gdocs.filter(docMatches);
     // The pick falls back to All while it has nothing to show (a search, a stale hash).
     let view = state.proj;
-    if (view === GLOBAL ? !gtips.length : view !== "all" && !rows.some((r) => r.p.key === view)) view = "all";
-    renderNav(rows, gtips.length, view, !!q);
+    if (view === GLOBAL ? !gtips.length && !gdocs.length : view !== "all" && !rows.some((r) => r.p.key === view)) view = "all";
+    renderNav(rows, gtips.length + gdocs.length, view, !!q);
 
     // Repository: a host icon next to the project name, the address in the tooltip.
     const repoLink = (url) => {
@@ -1215,7 +1401,7 @@
       a.appendChild(icon(host === "github.com" ? "github" : /(^|\.)gitlab\./.test(host) ? "gitlab" : "git"));
       return a;
     };
-    const projectSection = ({ p, tasks, ptips, act }) => {
+    const projectSection = ({ p, tasks, ptips, pdocs, act }) => {
       // Done forks stay under their active parent (at any depth); the rest go to Archived.
       const tree = act.slice(), inTree = new Set(act.map((t) => t.task));
       for (let grew = true; grew;) {
@@ -1241,23 +1427,24 @@
       head.appendChild(pt);
       if (p.conflicts.length) head.appendChild(chip(p.conflicts.length + " sync conflicts", "warn", p.conflicts.join("\n")));
       const add = ibtn("plus", "", "ghost newt");
-      add.title = "new task or tip in " + p.key + (data.projects.length === 1 || state.proj === p.key ? " (n)" : "");
+      add.title = "new task, doc or tip in " + p.key + (data.projects.length === 1 || state.proj === p.key ? " (n)" : "");
       add.setAttribute("aria-label", add.title);
       add.addEventListener("click", () => newTask(p.key));
       head.appendChild(add);
       head.appendChild(dirDot(p, p.key, "last"));
       sec.appendChild(head);
 
-      // Tasks | Tips tabs when the project has both.
-      const hasTasks = p.tasks.length > 0;
+      // Tasks | Docs | Tips tabs when the project has more than one of them.
+      // While searching, a tab without matches gives way to one with them.
+      const kinds = [["tasks", "Tasks", act.length, p.tasks.length > 0, tasks.length], ["docs", "Docs", pdocs.length, pdocs.length > 0, pdocs.length],
+        ["tips", "Tips", ptips.length, ptips.length > 0, ptips.length]].filter((k) => k[3]);
       let tab = state.tab[p.key] || "tasks";
-      if (!ptips.length || !hasTasks) tab = hasTasks ? "tasks" : "tips";
-      if (q && tab === "tasks" && !tasks.length) tab = "tips";
-      if (q && tab === "tips" && !ptips.length) tab = "tasks";
-      if (hasTasks && ptips.length) {
+      if (!kinds.some((k) => k[0] === tab)) tab = kinds.length ? kinds[0][0] : "tasks";
+      if (q && kinds.length && !kinds.find((k) => k[0] === tab)[4]) tab = (kinds.find((k) => k[4]) || kinds[0])[0];
+      if (kinds.length > 1) {
         const tabs = el("div", "seg ptabs");
         tabs.setAttribute("role", "tablist");
-        [["tasks", "Tasks", act.length], ["tips", "Tips", ptips.length]].forEach(([k, label, n]) => {
+        kinds.forEach(([k, label, n]) => {
           const b = el("button", "", label);
           b.appendChild(el("span", "count " + k, String(n)));
           b.setAttribute("role", "tab");
@@ -1267,8 +1454,10 @@
         });
         sec.appendChild(tabs);
       }
-      if (tab === "tips" && ptips.length) {
+      if (tab === "tips") {
         sec.appendChild(items(tipsList(ptips, projectWho(p.key), h)));
+      } else if (tab === "docs") {
+        sec.appendChild(items(docsList(pdocs)));
       } else {
         if (act.length) sec.appendChild(items(cards(tree, true)));
         else sec.appendChild(el("div", "none", "No active tasks."));
@@ -1300,7 +1489,7 @@
       head.appendChild(av);
       const pt = el("span", "ptitle");
       const pn = el("span", "pname", "Global tips");
-      pn.appendChild(el("span", "count tips", String(gtips.length)));
+      pn.appendChild(el("span", "count tips", String(gtips.length + gdocs.length)));
       pt.appendChild(pn);
       pt.appendChild(el("span", "ppath", "hold in every project"));
       head.appendChild(pt);
@@ -1318,7 +1507,7 @@
       sec.appendChild(head);
       if (open) {
         const grid = el("div", "tipgrid");
-        tipsList(gtips, globalWho, h).forEach((c) => { c.classList.add("tcard"); grid.appendChild(c); });
+        docsList(gdocs).concat(tipsList(gtips, globalWho, h)).forEach((c) => { c.classList.add("tcard"); grid.appendChild(c); });
         sec.appendChild(grid);
       }
       return sec;
@@ -1328,10 +1517,10 @@
     else if (view !== "all") list.appendChild(projectSection(rows.find((r) => r.p.key === view)));
     else {
       rows.forEach((r) => list.appendChild(projectSection(r)));
-      if (gtips.length) list.appendChild(globalSection());
+      if (gtips.length || gdocs.length) list.appendChild(globalSection());
     }
-    if (!rows.length && !gtips.length) {
-      const any = data.projects.length || data.global.length;
+    if (!rows.length && !gtips.length && !gdocs.length) {
+      const any = data.projects.length || data.global.length || data.gdocs.length;
       const e = el("div", "empty", any ? "Nothing matches the search." : "No handoffs yet in " + tilde(data.root) + ". Save one with /handoff or baton save.");
       if (q) {
         const clear = el("button", "", "Clear search");
@@ -1349,9 +1538,10 @@
   async function load() {
     try {
       const list = await api("/api/projects");
-      const [details, allTips] = await Promise.all([
+      const [details, allTips, gdocs] = await Promise.all([
         Promise.all(list.projects.map((p) => api("/api/projects/" + enc(p.key)))),
         api("/api/tips"),
+        api("/api/docs"),
       ]);
       const sortTasks = (ts) => ts.slice().sort((a, b) => (b.created > a.created ? 1 : -1));
       const next = {
@@ -1360,9 +1550,10 @@
         projects: list.projects.map((p, i) => {
           const d = details[i];
           const tasks = sortTasks(d.tasks.concat(d.archived)).map((t) => Object.assign({ project: p.key }, t));
-          return { key: p.key, dir: d.dir || "", repo: p.repo || "", updated: p.updated, conflicts: d.conflicts, tasks, tips: d.tips };
+          return { key: p.key, dir: d.dir || "", repo: p.repo || "", updated: p.updated, conflicts: d.conflicts, tasks, tips: d.tips, docs: d.docs || [] };
         }),
         global: allTips.filter((t) => t.scope === GLOBAL),
+        gdocs,
       };
       $("#error").hidden = true;
       const same = data && JSON.stringify(next) === JSON.stringify(data);
@@ -1413,7 +1604,7 @@
   $("#q").addEventListener("input", (e) => {
     state.q = e.target.value;
     clearTimeout(searchTimer);
-    if (state.q.trim().length < 2) { hits = new Map(); tipHits = new Set(); render(); return; }
+    if (state.q.trim().length < 2) { hits = new Map(); tipHits = new Set(); docHits = new Set(); render(); return; }
     render();
     searchTimer = setTimeout(async () => {
       const q = state.q;
@@ -1422,6 +1613,7 @@
         if (q !== state.q) return;
         hits = new Map(res.tasks.map((h) => [h.project + "|" + h.task.task, h.snippet]));
         tipHits = new Set(res.tips.map(tipKey));
+        docHits = new Set((res.docs || []).map(docKey));
         render();
       } catch (err) { /* keep the local filter */ }
     }, 300);

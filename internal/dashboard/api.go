@@ -11,6 +11,7 @@ import (
 
 	"github.com/v-kravchenko/baton/internal/agent"
 	"github.com/v-kravchenko/baton/internal/config"
+	"github.com/v-kravchenko/baton/internal/docs"
 	"github.com/v-kravchenko/baton/internal/gitinfo"
 	"github.com/v-kravchenko/baton/internal/store"
 	"github.com/v-kravchenko/baton/internal/tips"
@@ -142,7 +143,12 @@ func (s *Server) apiProject(w http.ResponseWriter, r *http.Request) (any, error)
 		return nil, err
 	}
 	tips.Sort(ts)
-	out := map[string]any{"key": p, "dir": s.paths()[p], "tasks": []taskJSON{}, "archived": []taskJSON{}, "tips": []tipJSON{}, "conflicts": nonNil(s.Store.Conflicts(p))}
+	ds, err := s.Docs.List(p)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]any{"key": p, "dir": s.paths()[p], "tasks": []taskJSON{}, "archived": []taskJSON{}, "tips": []tipJSON{}, "docs": docList(ds),
+		"conflicts": nonNil(s.Store.Conflicts(p))}
 	var a, b []taskJSON
 	for _, h := range active {
 		a = append(a, taskOf(h))
@@ -659,7 +665,7 @@ func (s *Server) apiSearch(w http.ResponseWriter, r *http.Request) (any, error) 
 		Task    taskJSON `json:"task"`
 		Snippet string   `json:"snippet,omitempty"`
 	}
-	out := map[string]any{"tasks": []hit{}, "tips": []tipJSON{}}
+	out := map[string]any{"tasks": []hit{}, "tips": []tipJSON{}, "docs": []docJSON{}}
 	if q == "" {
 		return out, nil
 	}
@@ -681,6 +687,23 @@ func (s *Server) apiSearch(w http.ResponseWriter, r *http.Request) (any, error) 
 	}
 	if hits != nil {
 		out["tasks"] = hits
+	}
+	var dj []docJSON
+	for _, sc := range append(s.Store.Projects(), store.Global) {
+		ds, _ := s.Docs.List(sc)
+		for _, d := range ds {
+			text := strings.ToLower(d.ID + " " + d.Title + "\n" + d.Body)
+			all := true
+			for _, w := range words {
+				all = all && strings.Contains(text, w)
+			}
+			if all {
+				dj = append(dj, docOf(d, false))
+			}
+		}
+	}
+	if dj != nil {
+		out["docs"] = dj
 	}
 	allTips, _ := s.Tips.List(s.Tips.Scopes()...)
 	var tj []tipJSON
@@ -717,4 +740,128 @@ func nonNil[T any](s []T) []T {
 		return []T{}
 	}
 	return s
+}
+
+type docJSON struct {
+	ID      string   `json:"id"`
+	Scope   string   `json:"scope"`
+	Title   string   `json:"title"`
+	Updated string   `json:"updated"`
+	Body    string   `json:"body,omitempty"`
+	UsedBy  []string `json:"used_by,omitempty"`
+}
+
+func docOf(d *docs.Doc, body bool) docJSON {
+	j := docJSON{ID: d.ID, Scope: d.Scope, Title: d.Title,
+		Updated: d.Updated.Format(time.RFC3339)}
+	if body {
+		j.Body = d.Body
+	}
+	return j
+}
+
+func docList(ds []*docs.Doc) []docJSON {
+	out := []docJSON{}
+	for _, d := range ds {
+		out = append(out, docOf(d, false))
+	}
+	return out
+}
+
+// apiDocs lists the global docs; project docs come with the project.
+func (s *Server) apiDocs(w http.ResponseWriter, r *http.Request) (any, error) {
+	ds, err := s.Docs.List(store.Global)
+	return docList(ds), err
+}
+
+func (s *Server) docParam(r *http.Request) (*docs.Doc, error) {
+	scope, err := store.TaskName(r.PathValue("scope"))
+	if err != nil {
+		return nil, errStatus(http.StatusNotFound, "no such doc")
+	}
+	d, err := s.Docs.Get(r.PathValue("id"), scope)
+	if err != nil {
+		return nil, errStatus(http.StatusNotFound, "no such doc")
+	}
+	return d, nil
+}
+
+func (s *Server) apiDoc(w http.ResponseWriter, r *http.Request) (any, error) {
+	d, err := s.docParam(r)
+	if err != nil {
+		return nil, err
+	}
+	j := docOf(d, true)
+	if d.Scope != store.Global {
+		j.UsedBy = docs.Backlinks(s.Store, d.Scope, d.ID)
+	}
+	return map[string]any{"doc": j, "version": d.Version, "obsidian": s.cfg().ObsidianURL(d.Path)}, nil
+}
+
+type docEditJSON struct {
+	Scope   string `json:"scope"`
+	Title   string `json:"title"`
+	Body    string `json:"body"`
+	Version string `json:"version"`
+}
+
+func decodeDoc(r *http.Request) (docEditJSON, error) {
+	var in docEditJSON
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		return in, errStatus(http.StatusBadRequest, "bad request")
+	}
+	return in, nil
+}
+
+// apiDocNew writes a doc in a project or global scope.
+func (s *Server) apiDocNew(w http.ResponseWriter, r *http.Request) (any, error) {
+	in, err := decodeDoc(r)
+	if err != nil {
+		return nil, err
+	}
+	scope, err := store.TaskName(in.Scope)
+	if err != nil || (scope != store.Global && !s.Store.Exists(scope)) {
+		return nil, errStatus(http.StatusBadRequest, "no such project")
+	}
+	body := in.Body
+	// A body starting with "---" would be read as frontmatter: keep it text.
+	if strings.HasPrefix(strings.TrimSpace(body), "---") {
+		body = "\n" + body
+	}
+	d, warns, err := s.Docs.New(docs.NewInput{Scope: scope, Title: in.Title, Body: body})
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"doc": docOf(d, false), "warnings": nonNil(warns)}, nil
+}
+
+// apiDocEdit saves a doc; a file changed since version is a conflict.
+func (s *Server) apiDocEdit(w http.ResponseWriter, r *http.Request) (any, error) {
+	d, err := s.docParam(r)
+	if err != nil {
+		return nil, err
+	}
+	in, err := decodeDoc(r)
+	if err != nil {
+		return nil, err
+	}
+	if in.Version == "" {
+		return nil, errStatus(http.StatusBadRequest, "version is required")
+	}
+	nd, warns, err := s.Docs.Edit(d, docs.EditInput{Title: in.Title, Body: in.Body, Expect: in.Version})
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"doc": docOf(nd, false), "warnings": nonNil(warns)}, nil
+}
+
+func (s *Server) apiDocDelete(w http.ResponseWriter, r *http.Request) (any, error) {
+	d, err := s.docParam(r)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.Docs.Delete(d); err != nil {
+		return nil, err
+	}
+	return map[string]bool{"ok": true}, nil
 }

@@ -186,6 +186,7 @@ type showResult struct {
 	Forks     []string           `json:"forks,omitempty"`
 	Staleness *gitinfo.Staleness `json:"staleness,omitempty"`
 	Tips      []tipRef           `json:"tips,omitempty"`
+	Docs      []docRef           `json:"docs,omitempty"`
 	Warnings  []string           `json:"warnings,omitempty"`
 	handoff   *store.Handoff
 }
@@ -288,6 +289,7 @@ func buildShow(app *App, st *store.Store, p, task string) (*showResult, error) {
 	s := gitinfo.Stale(app.Cwd, h.Branch, h.Commit)
 	r.Staleness = &s
 	r.Tips = app.tipsForHandoff(p, h)
+	r.Docs = app.docsForHandoff(p, h)
 	return r, nil
 }
 
@@ -339,6 +341,12 @@ func printShow(app *App, r *showResult) {
 		app.printf("\nstaleness:\n")
 		for _, l := range lines {
 			app.printf("  %s\n", l)
+		}
+	}
+	if len(r.Docs) > 0 {
+		app.printf("\nlinked docs (full text: baton docs show ID):\n")
+		for _, d := range r.Docs {
+			app.printf("  %s: %s\n", d.ID, d.Title)
 		}
 	}
 	if len(r.Tips) > 0 {

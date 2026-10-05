@@ -1,0 +1,65 @@
+mkdir $WORK/src/api
+cd $WORK/src/api
+
+exec baton docs
+stdout 'no docs'
+
+stdin $WORK/flow.md
+exec baton docs new
+stdout 'saved doc migration-workflow \(api\)'
+stdout 'link it from a handoff as \[\[migration-workflow\]\]'
+grep 'title: "Migration workflow"' $WORK/root/api/docs/migration-workflow.md
+grep 'created: 2026-10-01T10:15:00\+03:00' $WORK/root/api/docs/migration-workflow.md
+
+# A task name cannot be taken as a doc id.
+stdin $WORK/handoff.md
+exec baton save @screens --title 'Screens'
+stdin $WORK/flow.md
+! exec baton docs new --id screens
+stderr 'already has a task "screens"'
+
+# The handoff links the doc: show lists it, the doc lists the task.
+exec baton show @screens
+stdout 'linked docs'
+stdout 'migration-workflow: Migration workflow$'
+exec baton docs show migration-workflow
+stdout 'used by: @screens'
+stdout '1. Estimate'
+exec baton show --json @screens
+stdout '"docs": \['
+
+# Edit keeps the title; a stale version is refused.
+stdin $WORK/flow2.md
+exec baton docs edit migration-workflow
+grep '1. Estimate twice' $WORK/root/api/docs/migration-workflow.md
+grep 'title: "Migration workflow"' $WORK/root/api/docs/migration-workflow.md
+stdin $WORK/flow2.md
+! exec baton docs edit migration-workflow --expect 0000
+stderr 'changed since it was opened'
+
+# Global docs are listed with the project's.
+stdin $WORK/flow2.md
+exec baton docs new --global --title 'Workflow v2'
+exec baton docs list
+stdout 'migration-workflow api'
+stdout 'workflow-v2 global'
+exec baton docs delete workflow-v2
+! exists $WORK/root/global/docs/workflow-v2.md
+
+-- flow.md --
+---
+title: Migration workflow
+---
+1. Estimate the scope.
+2. Migrate.
+-- flow2.md --
+1. Estimate twice.
+-- handoff.md --
+## Goal
+Migrate screens by [[migration-workflow]].
+
+## State
+- none
+
+## Next steps
+1. [ ] start
