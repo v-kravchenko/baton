@@ -30,7 +30,7 @@ root, without `cd`.
 1. Read it fully. Check the staleness report: new commits, a rebased or
    missing commit, or a dirty tree mean parts of the handoff may be out of
    date. Check those parts against the code before relying on them.
-2. If linked docs are listed, read them with `baton docs show ID`: they
+2. If docs of the task are listed, read them with `baton docs show @task ID`: they
    hold the plan or rules the handoff relies on; follow them and change them only
    with the user's consent.
 3. If tips are listed, read the relevant ones with `baton tips show ID`.

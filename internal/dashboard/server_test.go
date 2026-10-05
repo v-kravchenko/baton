@@ -475,39 +475,42 @@ func TestDocAPI(t *testing.T) {
 	e := newEnv(t, false)
 	csrf := decode(t, e.do("GET", "/api/session", "", local))["csrf"].(string)
 	tok := header(csrfHeader, csrf)
-	w := e.do("POST", "/api/docs", `{"scope":"api","title":"Flow","body":"1. go\n"}`, local, tok)
-	if w.Code != 200 || !strings.Contains(w.Body.String(), `"id":"flow"`) {
+	base := "/api/projects/api/tasks/auth/docs"
+	w := e.do("POST", base, `{"title":"Flow","body":"1. go\n"}`, local, tok)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"id":"flow"`) || !strings.Contains(w.Body.String(), `"task":"auth"`) {
 		t.Fatalf("new: %d %s", w.Code, w.Body.String())
 	}
-	if w := e.do("POST", "/api/docs", `{"scope":"api","title":"Auth","body":"x"}`, local, tok); w.Code != 200 || !strings.Contains(w.Body.String(), `"id":"auth-2"`) {
+	if w := e.do("POST", base, `{"title":"Auth","body":"x"}`, local, tok); w.Code != 200 || !strings.Contains(w.Body.String(), `"id":"auth-2"`) {
 		t.Errorf("slug next to a task: %d %s", w.Code, w.Body.String())
 	}
-	if w := e.do("POST", "/api/docs", `{"scope":"api","title":"","body":"y"}`, local, tok); w.Code != 400 {
+	if w := e.do("POST", base, `{"title":"","body":"y"}`, local, tok); w.Code != 400 {
 		t.Errorf("no title: %d", w.Code)
 	}
-	e.srv.Store.Save("api", "auth", store.SaveInput{Body: "## Goal\nby [[flow]]\n"})
+	if w := e.do("POST", "/api/projects/api/tasks/nope/docs", `{"title":"x","body":"y"}`, local, tok); w.Code != 400 {
+		t.Errorf("missing task: %d", w.Code)
+	}
 	if p := e.do("GET", "/api/projects/api", "", local).Body.String(); !strings.Contains(p, `"docs":[{`) || !strings.Contains(p, `"id":"flow"`) {
 		t.Errorf("project docs: %s", p)
 	}
-	d := decode(t, e.do("GET", "/api/docs/api/flow", "", local))
-	ver := d["version"].(string)
-	if used := d["doc"].(map[string]any)["used_by"]; used == nil || used.([]any)[0] != "auth" {
-		t.Errorf("used_by = %v", used)
+	if p := e.do("GET", base[:len(base)-5], "", local).Body.String(); !strings.Contains(p, `"docs":[{`) || !strings.Contains(p, `"id":"flow"`) {
+		t.Errorf("task docs: %s", p)
 	}
+	d := decode(t, e.do("GET", base+"/flow", "", local))
+	ver := d["version"].(string)
 	edit := `{"title":"Flow 2","body":"1. go twice\n","version":"` + ver + `"}`
-	if w := e.do("PUT", "/api/docs/api/flow", edit, local, tok); w.Code != 200 || !strings.Contains(w.Body.String(), `"title":"Flow 2"`) {
+	if w := e.do("PUT", base+"/flow", edit, local, tok); w.Code != 200 || !strings.Contains(w.Body.String(), `"title":"Flow 2"`) {
 		t.Fatalf("edit: %d %s", w.Code, w.Body.String())
 	}
-	if w := e.do("PUT", "/api/docs/api/flow", edit, local, tok); w.Code != 409 {
+	if w := e.do("PUT", base+"/flow", edit, local, tok); w.Code != 409 {
 		t.Errorf("stale edit: %d", w.Code)
 	}
 	if s := e.do("GET", "/api/search?q=twice", "", local).Body.String(); !strings.Contains(s, `"id":"flow"`) {
 		t.Errorf("search: %s", s)
 	}
-	if w := e.do("DELETE", "/api/docs/api/flow", "", local, tok); w.Code != 200 {
+	if w := e.do("DELETE", base+"/flow", "", local, tok); w.Code != 200 {
 		t.Errorf("delete: %d", w.Code)
 	}
-	if w := e.do("GET", "/api/docs/api/flow", "", local); w.Code != 404 {
+	if w := e.do("GET", base+"/flow", "", local); w.Code != 404 {
 		t.Errorf("deleted: %d", w.Code)
 	}
 }

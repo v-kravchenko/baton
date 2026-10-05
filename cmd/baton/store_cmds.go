@@ -344,7 +344,7 @@ func printShow(app *App, r *showResult) {
 		}
 	}
 	if len(r.Docs) > 0 {
-		app.printf("\nlinked docs (full text: baton docs show ID):\n")
+		app.printf("\ndocs of the task (full text: baton docs show @%s ID):\n", h.Task)
 		for _, d := range r.Docs {
 			app.printf("  %s: %s\n", d.ID, d.Title)
 		}

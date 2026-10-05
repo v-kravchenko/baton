@@ -5,7 +5,7 @@
   // open: key of the item in the panel; proj: the sidebar pick.
   const state = { q: "", archOpen: [], tab: {}, open: null, globalOpen: false, proj: "all" };
   let session = null;
-  // data: { root, home, projects: [{ key, dir, updated, conflicts, tasks, tips, docs }], global: [tips], gdocs: [docs] }
+  // data: { root, home, projects: [{ key, dir, updated, conflicts, tasks, tips, docs }], global: [tips] }  (docs: all docs of the project, each with its task)
   let data = null;
   let hits = new Map(); // full-text search: task key -> snippet
   let tipHits = new Set(); // full-text search: tip key
@@ -183,7 +183,7 @@
   const taskPath = (t) => `/api/projects/${enc(t.project)}/tasks/${enc(t.task)}`;
   const keyOf = (t) => t.project + "|" + t.task;
   const tipKey = (tip) => tip.scope + "|" + tip.id;
-  const docKey = (doc) => "d:" + doc.scope + "|" + doc.id;
+  const docKey = (doc) => "d:" + doc.project + "|" + doc.task + "|" + doc.id;
   const command = (t) => "baton pickup " + t.project + " @" + t.task;
 
   async function copy(text, btn, codeEl, label) {
@@ -279,9 +279,10 @@
     c.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") go(e); });
     return c;
   }
-  function openTask(t) {
+  // docId: open the panel on the Docs tab with that doc.
+  function openTask(t, docId) {
     if (t.archived && !state.archOpen.includes(t.project)) { state.archOpen.push(t.project); render(); }
-    openPanel("t:" + keyOf(t), hue(t.project), projectWho(t.project), (body) => taskPanel(t, body), taskRef(t));
+    openPanel("t:" + keyOf(t), hue(t.project), projectWho(t.project), (body) => taskPanel(t, body, docId), taskRef(t));
   }
 
   // Card head: title and a "@task · chips" line; age and buttons on the right.
@@ -341,8 +342,8 @@
   };
   const globalWho = () => whoNode(icon("globe"), "Global tips", "every project", "");
 
-  // The open panel is part of the URL ("#<pick>/t/<project>/<task>", /p/ tip,
-  // /d/ doc) and each opening from the closed state is a history entry, so
+  // The open panel is part of the URL ("#<pick>/t/<project>/<task>", /p/ tip)
+  // and each opening from the closed state is a history entry, so
   // Back closes the panel instead of leaving the dashboard. history.state.d
   // counts the entries pushed since the page without a panel.
   // History calls remember the entry shown, to step back to it when a Back is refused.
@@ -353,7 +354,7 @@
   const pickHash = (v) => (v === "all" ? "" : v === GLOBAL ? "global-tips" : enc(v));
   function panelFromHash() {
     const m = location.hash.slice(1).split("/");
-    if (m.length !== 4 || !/^[tpd]$/.test(m[1])) return null;
+    if (m.length !== 4 || !/^[tp]$/.test(m[1])) return null;
     try { return { k: m[1], scope: decodeURIComponent(m[2]), id: decodeURIComponent(m[3]) }; } catch (e) { return null; }
   }
   const sameRef = (a, b) => !!a && !!b && a.k === b.k && a.scope === b.scope && a.id === b.id;
@@ -368,7 +369,6 @@
   }
   const taskRef = (t) => ({ k: "t", scope: t.project, id: t.task });
   const tipRef = (t) => ({ k: "p", scope: t.scope, id: t.id });
-  const docRef = (d) => ({ k: "d", scope: d.scope, id: d.id });
   // Opens (or closes) the panel the URL names; a page opened on a panel link
   // first gets the entry below it, so closing has somewhere to go.
   function syncPanel(ref) {
@@ -381,15 +381,13 @@
         obj = pr && pr.tasks.find((t) => t.task === ref.id);
         if (obj) openTask(obj);
       } else {
-        const pool = ref.k === "p" ? allTips() : allDocs();
-        obj = pool.find((x) => x.scope === ref.scope && x.id === ref.id);
-        if (obj) (ref.k === "p" ? openTip : openDoc)(obj);
+        obj = allTips().find((x) => x.scope === ref.scope && x.id === ref.id);
+        if (obj) openTip(obj);
       }
       if (!obj) { hidePanel(); hrep({ d: 0 }, "", "#" + pickHash(state.proj)); }
     } finally { navigating = false; }
   }
   const allTips = () => data.global.concat(...data.projects.map((p) => p.tips));
-  const allDocs = () => data.gdocs.concat(...data.projects.map((p) => p.docs));
 
   function openPanel(key, h, where, build, ref) {
     if (!leaveEditor()) return;
@@ -457,33 +455,36 @@
   // The panel head shows the title; a first "# Title" heading in the text
   // would repeat it.
   // onCheck(line, checked, box) gets lines of the full body.
-  function bodyView(body, title, project, onCheck) {
+  function bodyView(body, title, project, onCheck, task) {
     const m = /^\s*# (.*)\n?/.exec(body);
     const cut = m && m[1].trim() === String(title).trim() ? m[0] : "";
     const skip = cut.split("\n").length - 1;
-    return window.renderMarkdown(body.slice(cut.length), { ref: refs(project), onCheck: onCheck && ((n, on, box) => onCheck(n + skip, on, box)) });
+    return window.renderMarkdown(body.slice(cut.length), { ref: refs(project, task), onCheck: onCheck && ((n, on, box) => onCheck(n + skip, on, box)) });
   }
 
-  // Links in a text of project: @name to a task there, [[name]] to a task,
-  // else a doc, else a tip (the project's, then global). Unknown names stay text.
-  function refs(project) {
+  // Links in a text of project (and task): @name to a task there, [[name]] to
+  // a task, else a doc of task ([[other/name]]: of another task), else a tip
+  // (the project's, then global). Unknown names stay text.
+  function refs(project, task) {
     return (name, label) => {
       const p = projectOf(project);
       const x = p && p.tasks.find((t) => t.task === name);
       const wiki = !x && label !== "@" + name;
-      const doc = wiki && (p ? p.docs : []).concat(data.gdocs).find((d) => d.id === name);
+      const at = name.split("/");
+      const doc = wiki && p && p.docs.find((d) => (at.length === 2 ? d.task === at[0] && d.id === at[1] : d.task === task && d.id === name));
       const tip = wiki && !doc && (p ? p.tips : []).concat(data.global).find((t) => t.id === name);
       if (!x && !doc && !tip) return null;
       const a = el("a", "ref" + (x && x.archived ? " done" : ""), label);
       a.href = "#";
       a.title = x ? "@" + x.task + ": " + x.title + " (" + statusText(x) + ")" : doc ? "doc: " + doc.title : "tip: " + tip.title;
-      a.addEventListener("click", (e) => { e.preventDefault(); x ? openTask(x) : doc ? openDoc(doc) : openTip(tip); });
+      a.addEventListener("click", (e) => { e.preventDefault(); x ? openTask(x) : doc ? openTask(p.tasks.find((t) => t.task === doc.task) || x, doc.id) : openTip(tip); });
       return a;
     };
   }
 
-  // Latest / History tabs. Version n: 0 is the current handoff, 1.. history (newest first).
-  function details(t, d, box, actions) {
+  // Latest / History / Docs tabs. Version n: 0 is the current handoff, 1.. history (newest first).
+  // docId opens the Docs tab on that doc.
+  function details(t, d, box, actions, docId) {
     const tabs = el("div", "seg tabs");
     tabs.setAttribute("role", "tablist");
     const view = el("div");
@@ -492,6 +493,8 @@
     const latest = tab("Latest");
     const hist = tab("History");
     if (d.history.length) hist.appendChild(el("span", "count", String(d.history.length + 1)));
+    const docsTab = tab("Docs");
+    if (d.docs.length) docsTab.appendChild(el("span", "count", String(d.docs.length)));
     const bar = el("div", "dbar");
     bar.appendChild(tabs);
     // One joined group of buttons, right of the tabs.
@@ -502,7 +505,7 @@
     if (crumbs) box.appendChild(crumbs);
     box.appendChild(bar);
     box.appendChild(view);
-    const select = (b) => [latest, hist].forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+    const select = (b) => [latest, hist, docsTab].forEach((x) => x.setAttribute("aria-selected", String(x === b)));
 
     function showLatest() {
       view.textContent = "";
@@ -513,7 +516,7 @@
         stale.forEach((l) => n.appendChild(el("div", "mono", l)));
         view.appendChild(n);
       }
-      view.appendChild(bodyView(d.body, d.handoff.title, t.project, t.archived ? null : tick));
+      view.appendChild(bodyView(d.body, d.handoff.title, t.project, t.archived ? null : tick, t.task));
     }
     function showHistory() {
       view.textContent = "";
@@ -547,7 +550,7 @@
         // version has nothing to diff against.
         const open = el("button", "", "View");
         open.addEventListener("click", () => toggle(open, async () =>
-          bodyView(n ? (await api(taskPath(t) + "/history/" + n)).body : d.body, v.title, t.project)));
+          bodyView(n ? (await api(taskPath(t) + "/history/" + n)).body : d.body, v.title, t.project, null, t.task)));
         btns.appendChild(open);
         const b = el("button", "", "Diff");
         if (n + 1 < rows.length) {
@@ -580,6 +583,80 @@
       });
       view.appendChild(list);
     }
+    // Docs attached to the task: a list, and one doc open in place of it.
+    function showDocs() {
+      view.textContent = "";
+      const add = ibtn("plus", "Doc", "ghost");
+      add.title = "new doc for @" + t.task;
+      add.addEventListener("click", () => docForm(view, { task: t, back: showDocs }));
+      const top = el("div", "docbar");
+      top.appendChild(el("span", "none", d.docs.length ? "Docs of @" + t.task : "No docs for @" + t.task + "."));
+      top.appendChild(add);
+      view.appendChild(top);
+      const items = el("div", "items");
+      d.docs.forEach((doc) => {
+        const c = el("div", "item");
+        const [head] = cardHead(doc.title, doc.id, el("span", "chips"), doc.updated, "updated " + when(doc.updated), [arrow()]);
+        c.appendChild(head);
+        opener(head, () => showDoc(doc));
+        items.appendChild(c);
+      });
+      view.appendChild(items);
+    }
+    function showDoc(doc) {
+      view.textContent = "Loading…";
+      api(docPath(t, doc)).then((r) => {
+        view.textContent = "";
+        const x = r.doc;
+        const back = el("button", "ghost", "← Docs");
+        back.addEventListener("click", showDocs);
+        const top = el("div", "docbar");
+        top.appendChild(back);
+        top.appendChild(el("strong", "", x.title));
+        view.appendChild(top);
+        if (notice && notice.key === docKey(x)) {
+          const n = el("div", "note");
+          n.appendChild(el("strong", "", "Saved with warnings"));
+          notice.warnings.forEach((w) => n.appendChild(el("div", "", w)));
+          view.appendChild(n);
+        }
+        if (r.obsidian) {
+          const row = el("div", "agents");
+          row.appendChild(obsidianLink(r.obsidian));
+          view.appendChild(row);
+        }
+        view.appendChild(window.renderMarkdown(x.body || "", { ref: refs(t.project, t.task) }));
+        const row = el("div", "actions");
+        row.appendChild(el("div", "file", t.project + "/docs/" + t.task + "/" + x.id));
+        const group = bgroup();
+        row.appendChild(group);
+        const cp = ibtn("copy", "Copy", "copy");
+        cp.title = "copy the doc Markdown";
+        const text = el("pre", "manual");
+        text.hidden = true;
+        cp.addEventListener("click", () => { text.textContent = x.body; copy(x.body, cp, text, "Copy"); });
+        group.appendChild(cp);
+        const edit = ibtn("edit", "Edit");
+        edit.title = "edit the doc; it has no history";
+        edit.addEventListener("click", () => docForm(view, { task: t, doc: x, version: r.version, back: () => showDoc(doc) }));
+        group.appendChild(edit);
+        const del = ibtn("trash", "Delete");
+        del.title = "delete the doc file";
+        del.addEventListener("click", async () => {
+          if (!confirm("Delete doc " + x.id + " of @" + t.task + "?")) return;
+          del.disabled = true;
+          try {
+            await api(docPath(t, x), { method: "DELETE" });
+            await load();
+            openTask(freshTask(t), "");
+          } catch (e) { del.disabled = false; alert("Failed: " + e.message); }
+        });
+        group.appendChild(del);
+        view.appendChild(row);
+        view.appendChild(text);
+        notice = null;
+      }).catch(failed(view));
+    }
     // A ticked step is saved in place (no History entry), like an edit by hand.
     async function tick(line, on, box) {
       box.disabled = true;
@@ -594,11 +671,18 @@
     }
     latest.addEventListener("click", () => { select(latest); showLatest(); });
     hist.addEventListener("click", () => { select(hist); showHistory(); });
-    select(latest);
-    showLatest();
+    docsTab.addEventListener("click", () => { select(docsTab); showDocs(); });
+    const first = docId && d.docs.find((x) => x.id === docId);
+    if (docId !== undefined && docId !== null && (first || docId === "")) {
+      select(docsTab);
+      if (first) showDoc(first); else showDocs();
+    } else {
+      select(latest);
+      showLatest();
+    }
   }
 
-  function taskPanel(t, body) {
+  function taskPanel(t, body, docId) {
     panelHead(body, t.title === t.task ? "" : t.title, "@" + t.task, chips(t, true), t.created, when(t.created));
     const box = el("div", "details");
     box.textContent = "Loading…";
@@ -665,7 +749,7 @@
         } catch (e) { act.disabled = false; alert("Failed: " + e.message); }
       });
       acts.push(act);
-      details(t, d, box, acts);
+      details(t, d, box, acts, docId);
       if (notice && notice.key === keyOf(t)) {
         const n = el("div", "note");
         n.appendChild(el("strong", "", "Saved with warnings"));
@@ -860,11 +944,10 @@
       })).catch(failed(box));
       const startTask = () => (parent ? startEditor() : template().then(() => quickForm(box, project, startEditor)).catch(failed(box)));
       const startTip = () => template().then(() => tipForm(box, { scope: project })).catch(failed(box));
-      const startDoc = () => docForm(box, { scope: project });
       if (!parent) {
         const tabs = el("div", "seg tabs newkind");
         tabs.setAttribute("role", "tablist");
-        [["Task", startTask], ["Doc", startDoc], ["Tip", startTip]].forEach(([label, start], i) => {
+        [["Task", startTask], ["Tip", startTip]].forEach(([label, start], i) => {
           const b = el("button", "", label);
           b.setAttribute("role", "tab");
           b.setAttribute("aria-selected", String(!i));
@@ -1145,55 +1228,22 @@
 
   // ---- docs ---------------------------------------------------------------
 
-  // Docs: plans, rules and agreements a handoff links with [[id]]. No
-  // history, status or diff: a save checks the version, a changed file is a 409.
-  const docPath = (doc) => `/api/docs/${enc(doc.scope)}/${enc(doc.id)}`;
-  function docChips(doc) {
-    const cs = el("span", "chips");
-    if (doc.scope === GLOBAL) cs.appendChild(chip("global"));
-    return cs;
-  }
-  function openDoc(doc) {
-    const g = doc.scope === GLOBAL;
-    openPanel(docKey(doc), g ? 200 : hue(doc.scope), g ? globalWho : projectWho(doc.scope), (body) => docPanel(doc, body), docRef(doc));
-  }
-  async function docSaved(r) {
+  // Docs: plans, rules and agreements attached to one task, shown on the Docs
+  // tab of its panel. No history, status or diff: a save checks the version,
+  // a changed file is a 409.
+  const docPath = (t, doc) => `${taskPath(t)}/docs/${enc(doc.id)}`;
+  // The task after a load(): the list holds fresh objects.
+  const freshTask = (t) => { const p = projectOf(t.project); return (p && p.tasks.find((x) => x.task === t.task)) || t; };
+  async function docSaved(t, r) {
     dirty = null;
     if (r.warnings && r.warnings.length) notice = { key: docKey(r.doc), warnings: r.warnings };
     await load();
-    openDoc(r.doc);
+    openTask(freshTask(t), r.doc.id);
   }
-  function docCard(doc) {
-    const c = el("div", "item");
-    c.dataset.key = docKey(doc);
-    const [head] = cardHead(doc.title, doc.id, docChips(doc), doc.updated, "updated " + when(doc.updated), [arrow()]);
-    c.appendChild(head);
-    opener(head, () => openDoc(doc));
-    return c;
-  }
-  // Newest update first.
-  function docsList(docs) {
-    return docs.slice().sort((a, b) => (b.updated > a.updated ? 1 : -1)).map(docCard);
-  }
-  function selectField(box, label, values, value) {
-    const l = el("label", "field");
-    l.appendChild(el("span", "", label));
-    const s = el("select", "ename");
-    values.forEach(([v, text]) => {
-      const op = el("option", "", text);
-      op.value = v;
-      s.appendChild(op);
-    });
-    s.value = value;
-    l.appendChild(s);
-    box.appendChild(l);
-    return s;
-  }
-  // o: { doc, version } to edit, or { scope } (a project) for a new one.
+  // o: { task, back, doc, version }: edit doc, or a new one without doc.
   function docForm(box, o) {
     box.textContent = "";
-    const d = o.doc;
-    const scope = d ? null : selectField(box, "Scope", [[o.scope, "project " + o.scope], [GLOBAL, "global: every project"]], o.scope);
+    const t = o.task, d = o.doc;
     const title = field(box, "Title", d ? d.title : "");
     const tabs = el("div", "seg tabs");
     tabs.setAttribute("role", "tablist");
@@ -1215,7 +1265,7 @@
       [write, look].forEach((x) => x.setAttribute("aria-selected", String(x === b)));
       ta.hidden = b !== write;
       view.hidden = b === write;
-      if (b === look) { view.textContent = ""; view.appendChild(window.renderMarkdown(ta.value, { ref: refs(scope ? scope.value : d.scope) })); }
+      if (b === look) { view.textContent = ""; view.appendChild(window.renderMarkdown(ta.value, { ref: refs(t.project, t.task) })); }
     };
     write.addEventListener("click", () => { pick(write); ta.focus(); });
     look.addEventListener("click", () => pick(look));
@@ -1235,8 +1285,8 @@
       if (save.disabled) return;
       save.disabled = true;
       try {
-        if (!d) await docSaved(await api("/api/docs", { method: "POST", body: Object.assign({ scope: scope.value }, payload()) }));
-        else await docSaved(await api(docPath(d), { method: "PUT", body: Object.assign({ version: o.version }, payload()) }));
+        if (!d) await docSaved(t, await api(taskPath(t) + "/docs", { method: "POST", body: payload() }));
+        else await docSaved(t, await api(docPath(t, d), { method: "PUT", body: Object.assign({ version: o.version }, payload()) }));
       } catch (e) {
         msg.textContent = "";
         msg.appendChild(el("div", "note", e.status === 409 ? "The doc changed since you opened it; copy your text, cancel and reopen it." : "Not saved: " + e.message));
@@ -1244,69 +1294,8 @@
     }
     save.addEventListener("click", doSave);
     onSaveKey([title, ta], doSave);
-    cancel.addEventListener("click", () => { if (leaveEditor()) (d ? openDoc(d) : closePanel()); });
+    cancel.addEventListener("click", () => { if (leaveEditor()) o.back(); });
     title.focus();
-  }
-  function docPanel(doc, body) {
-    panelHead(body, doc.title, doc.id, docChips(doc), doc.updated, "updated " + when(doc.updated));
-    const box = el("div", "details");
-    box.textContent = "Loading…";
-    body.appendChild(box);
-    api(docPath(doc)).then((r) => {
-      const d = r.doc;
-      box.textContent = "";
-      if (r.obsidian) {
-        const row = el("div", "agents");
-        row.appendChild(obsidianLink(r.obsidian));
-        box.appendChild(row);
-      }
-      // Used by @task, @task: the tasks whose handoff links the doc.
-      const p = projectOf(d.scope);
-      const used = (d.used_by || []).map((n) => p && p.tasks.find((t) => t.task === n)).filter(Boolean);
-      if (used.length) {
-        const cs = el("div", "chips");
-        used.forEach((t) => cs.appendChild(taskLink(chip("@" + t.task, "link", "used by: " + t.title + " (" + statusText(t) + ")"), t)));
-        box.appendChild(cs);
-      }
-      box.appendChild(window.renderMarkdown(d.body || "", { ref: refs(d.scope) }));
-      const row = el("div", "actions");
-      row.appendChild(el("div", "file", d.scope + "/docs/" + d.id));
-      const group = bgroup();
-      row.appendChild(group);
-      const cp = ibtn("copy", "Copy", "copy");
-      cp.title = "copy the doc Markdown (c)";
-      cp.dataset.hotkey = "c";
-      const text = el("pre", "manual");
-      text.hidden = true;
-      cp.addEventListener("click", () => { text.textContent = d.body; copy(d.body, cp, text, "Copy"); });
-      group.appendChild(cp);
-      const edit = ibtn("edit", "Edit");
-      edit.title = "edit the doc (e); it has no history";
-      edit.dataset.hotkey = "e";
-      edit.addEventListener("click", () => docForm(box, { doc: d, version: r.version }));
-      group.appendChild(edit);
-      const del = ibtn("trash", "Delete");
-      del.title = "delete the doc file";
-      del.addEventListener("click", async () => {
-        if (!confirm("Delete doc " + d.id + "?" + (used.length ? " It is linked from @" + used.map((t) => t.task).join(", @") + "." : ""))) return;
-        del.disabled = true;
-        try {
-          await api(docPath(d), { method: "DELETE" });
-          closePanel();
-          await load();
-        } catch (e) { del.disabled = false; alert("Failed: " + e.message); }
-      });
-      group.appendChild(del);
-      box.appendChild(row);
-      box.appendChild(text);
-      if (notice && notice.key === docKey(d)) {
-        const n = el("div", "note");
-        n.appendChild(el("strong", "", "Saved with warnings"));
-        notice.warnings.forEach((w) => n.appendChild(el("div", "", w)));
-        box.insertBefore(n, box.firstChild);
-      }
-      notice = null;
-    }).catch(failed(box));
   }
 
   // ---- task trees ---------------------------------------------------------
@@ -1393,7 +1382,7 @@
     const nav = $("#nav"), sel = $("#navsel");
     nav.textContent = "";
     sel.textContent = "";
-    const n = (r) => (searching ? r.tasks.length + r.ptips.length + r.pdocs.length : r.act.length);
+    const n = (r) => (searching ? r.tasks.length + r.ptips.length : r.act.length);
     const add = (v, label, num, lead, title) => {
       const b = el("button", "nitem");
       b.appendChild(lead);
@@ -1425,7 +1414,8 @@
     if (!data) return;
     const q = state.q.trim().toLowerCase();
     const matches = (t) => !q || hits.has(keyOf(t)) ||
-      [t.task, t.title, t.project].some((f) => f && f.toLowerCase().includes(q));
+      [t.task, t.title, t.project].some((f) => f && f.toLowerCase().includes(q)) ||
+      projectOf(t.project).docs.some((d) => d.task === t.task && docMatches(d));
     const tipMatches = (t) => !q || tipHits.has(tipKey(t)) ||
       [t.id, t.title, t.when, (t.keywords || []).join(" ")].some((f) => f && f.toLowerCase().includes(q));
     const docMatches = (d) => !q || docHits.has(docKey(d)) || [d.id, d.title].some((f) => f && f.toLowerCase().includes(q));
@@ -1439,14 +1429,13 @@
     // Projects with something to show (a search hides the rest, in the sidebar too).
     const rows = data.projects.map((p) => {
       const tasks = p.tasks.filter(matches);
-      return { p, tasks, ptips: p.tips.filter(tipMatches), pdocs: p.docs.filter(docMatches), act: tasks.filter((t) => !t.archived) };
-    }).filter((r) => r.tasks.length || r.ptips.length || r.pdocs.length || (!q && r.p.conflicts.length));
+      return { p, tasks, ptips: p.tips.filter(tipMatches), act: tasks.filter((t) => !t.archived) };
+    }).filter((r) => r.tasks.length || r.ptips.length || (!q && r.p.conflicts.length));
     const gtips = data.global.filter(tipMatches);
-    const gdocs = data.gdocs.filter(docMatches);
     // The pick falls back to All while it has nothing to show (a search, a stale hash).
     let view = state.proj;
-    if (view === GLOBAL ? !gtips.length && !gdocs.length : view !== "all" && !rows.some((r) => r.p.key === view)) view = "all";
-    renderNav(rows, gtips.length + gdocs.length, view, !!q);
+    if (view === GLOBAL ? !gtips.length : view !== "all" && !rows.some((r) => r.p.key === view)) view = "all";
+    renderNav(rows, gtips.length, view, !!q);
 
     // Repository: a host icon next to the project name, the address in the tooltip.
     const repoLink = (url) => {
@@ -1460,7 +1449,7 @@
       a.appendChild(icon(host === "github.com" ? "github" : /(^|\.)gitlab\./.test(host) ? "gitlab" : "git"));
       return a;
     };
-    const projectSection = ({ p, tasks, ptips, pdocs, act }) => {
+    const projectSection = ({ p, tasks, ptips, act }) => {
       // Done forks stay under their active parent (at any depth); the rest go to Archived.
       const tree = act.slice(), inTree = new Set(act.map((t) => t.task));
       for (let grew = true; grew;) {
@@ -1486,16 +1475,16 @@
       head.appendChild(pt);
       if (p.conflicts.length) head.appendChild(chip(p.conflicts.length + " sync conflicts", "warn", p.conflicts.join("\n")));
       const add = ibtn("plus", "", "ghost newt");
-      add.title = "new task, doc or tip in " + p.key + (data.projects.length === 1 || state.proj === p.key ? " (n)" : "");
+      add.title = "new task or tip in " + p.key + (data.projects.length === 1 || state.proj === p.key ? " (n)" : "");
       add.setAttribute("aria-label", add.title);
       add.addEventListener("click", () => newTask(p.key));
       head.appendChild(add);
       head.appendChild(dirDot(p, p.key, "last"));
       sec.appendChild(head);
 
-      // Tasks | Docs | Tips tabs when the project has more than one of them.
+      // Tasks | Tips tabs when the project has both.
       // While searching, a tab without matches gives way to one with them.
-      const kinds = [["tasks", "Tasks", act.length, p.tasks.length > 0, tasks.length], ["docs", "Docs", pdocs.length, pdocs.length > 0, pdocs.length],
+      const kinds = [["tasks", "Tasks", act.length, p.tasks.length > 0, tasks.length],
         ["tips", "Tips", ptips.length, ptips.length > 0, ptips.length]].filter((k) => k[3]);
       let tab = state.tab[p.key] || "tasks";
       if (!kinds.some((k) => k[0] === tab)) tab = kinds.length ? kinds[0][0] : "tasks";
@@ -1515,8 +1504,6 @@
       }
       if (tab === "tips") {
         sec.appendChild(items(tipsList(ptips, projectWho(p.key), h)));
-      } else if (tab === "docs") {
-        sec.appendChild(items(docsList(pdocs)));
       } else {
         if (act.length) sec.appendChild(items(cards(tree, true)));
         else sec.appendChild(el("div", "none", "No active tasks."));
@@ -1548,7 +1535,7 @@
       head.appendChild(av);
       const pt = el("span", "ptitle");
       const pn = el("span", "pname", "Global tips");
-      pn.appendChild(el("span", "count tips", String(gtips.length + gdocs.length)));
+      pn.appendChild(el("span", "count tips", String(gtips.length)));
       pt.appendChild(pn);
       pt.appendChild(el("span", "ppath", "hold in every project"));
       head.appendChild(pt);
@@ -1566,7 +1553,7 @@
       sec.appendChild(head);
       if (open) {
         const grid = el("div", "tipgrid");
-        docsList(gdocs).concat(tipsList(gtips, globalWho, h)).forEach((c) => { c.classList.add("tcard"); grid.appendChild(c); });
+        tipsList(gtips, globalWho, h).forEach((c) => { c.classList.add("tcard"); grid.appendChild(c); });
         sec.appendChild(grid);
       }
       return sec;
@@ -1576,10 +1563,10 @@
     else if (view !== "all") list.appendChild(projectSection(rows.find((r) => r.p.key === view)));
     else {
       rows.forEach((r) => list.appendChild(projectSection(r)));
-      if (gtips.length || gdocs.length) list.appendChild(globalSection());
+      if (gtips.length) list.appendChild(globalSection());
     }
-    if (!rows.length && !gtips.length && !gdocs.length) {
-      const any = data.projects.length || data.global.length || data.gdocs.length;
+    if (!rows.length && !gtips.length) {
+      const any = data.projects.length || data.global.length;
       const e = el("div", "empty", any ? "Nothing matches the search." : "No handoffs yet in " + tilde(data.root) + ". Save one with /handoff or baton save.");
       if (q) {
         const clear = el("button", "", "Clear search");
@@ -1597,10 +1584,9 @@
   async function load() {
     try {
       const list = await api("/api/projects");
-      const [details, allTips, gdocs] = await Promise.all([
+      const [details, allTips] = await Promise.all([
         Promise.all(list.projects.map((p) => api("/api/projects/" + enc(p.key)))),
         api("/api/tips"),
-        api("/api/docs"),
       ]);
       const sortTasks = (ts) => ts.slice().sort((a, b) => (b.created > a.created ? 1 : -1));
       const next = {
@@ -1612,7 +1598,6 @@
           return { key: p.key, dir: d.dir || "", repo: p.repo || "", updated: p.updated, conflicts: d.conflicts, tasks, tips: d.tips, docs: d.docs || [] };
         }),
         global: allTips.filter((t) => t.scope === GLOBAL),
-        gdocs,
       };
       $("#error").hidden = true;
       const same = data && JSON.stringify(next) === JSON.stringify(data);
@@ -1729,7 +1714,7 @@
       if (ref && data) {
         hrep({ d: 0 }, "", "#" + pickHash(state.proj));
         const found = ref.k === "t" ? projectOf(ref.scope) && projectOf(ref.scope).tasks.some((t) => t.task === ref.id)
-          : (ref.k === "p" ? allTips() : allDocs()).some((x) => x.scope === ref.scope && x.id === ref.id);
+          : allTips().some((x) => x.scope === ref.scope && x.id === ref.id);
         if (found) {
           hpush({ d: 1 }, "", "#" + pickHash(state.proj) + "/" + ref.k + "/" + enc(ref.scope) + "/" + enc(ref.id));
           syncPanel(ref);

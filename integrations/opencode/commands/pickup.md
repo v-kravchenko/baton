@@ -19,7 +19,7 @@ after loading the handoff; they override its next steps.
 
 When a handoff is shown: read it fully. Treat new commits, a rebased or
 missing commit, or a dirty tree in the staleness report as signs that parts
-may be out of date. Read the linked docs with `baton docs show ID` (follow them; change
+may be out of date. Read the docs of the task with `baton docs show @task ID` (follow them; change
 them only with the user's consent). Read the listed tips with `baton tips show ID` and run
 their Verify step before relying on them. Run the cheap Verify checks. If
 the handoff lacks something you need, `baton history task` lists earlier

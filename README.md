@@ -90,10 +90,9 @@ dashboard), on every OS; it has no `paths` entry.
 │   ├── archive/<task>.md             # finished tasks
 │   ├── history/<task>/<created>.md   # previous handoffs (keep-N)
 │   ├── tips/<id>.md                  # project tips
-│   └── docs/<id>.md                  # project docs
+│   └── docs/<task>/<id>.md           # docs of a task
 └── global/
     ├── tips/<id>.md                  # global tips
-    └── docs/<id>.md                  # global docs
 ```
 
 History file names are the `created` time in UTC (`20261001T071500Z.md`).
@@ -153,17 +152,21 @@ agent to run `baton tips search` before debugging.
 ### Docs
 
 Docs hold longer, stable text that a handoff should not rewrite every
-session: a plan or rules the user gave, an agreement, a spec. A handoff links
-one with `[[id]]`; `baton show` lists the linked docs (titles only) and
-`docs show` lists the tasks that link to a doc (`used by`). The installed
-skills tell agents to change a doc only with the user's consent.
+session: a plan or rules the user gave, an agreement, a spec. A doc is
+attached to one task (`docs/<task>/<id>.md`): it follows the task through
+`done`, `restore` and `rename`, and `baton show` lists the docs of the task
+(titles only), so the handoff needs no link; `[[id]]` in it still works as a
+link in the dashboard (`[[other-task/id]]` for a doc of another task). A fork
+does not copy docs. The installed skills tell agents to change a doc only with
+the user's consent.
 
 Doc frontmatter: `title`, `created`, `updated`. The body is free Markdown; `docs new`
-and `docs edit` warn above 8000 characters. The id is a slug of the title
-(or `--id`) and never a task or tip name of the scope, since `[[name]]` finds
-a task first. Docs have no history and no status: `docs edit` rewrites the
-file (`--expect` refuses it when the file changed since that version), and a
-doc that is no longer needed is deleted.
+and `docs edit` warn above 8000 characters. The task must exist; the id is a
+slug of the title (or `--id`), unique within the task, and never a task or tip
+name of the project, since `[[name]]` finds a task first. Docs have no history
+and no status: `docs edit` rewrites the file (`--expect` refuses it when the
+file changed since that version), and a doc that is no longer needed is
+deleted. There are no global docs.
 
 ## CLI
 
@@ -180,8 +183,8 @@ baton pickup [PROJECT] [@task] [PROMPT] [--agent X] [--print]
 baton path set KEY DIR | list | prune
 baton tips search [--error] [--all] WORDS | show ID | new [--global] | verified ID |
            refuted ID WHY | supersede OLD NEW | move ID global|project | list [--all]
-baton docs [list] | show ID | new [--global] [--id ID] [--title T] |
-           edit ID [--title T] [--expect VER] | delete ID
+baton docs [list] [@task] | show @task ID | new @task [--id ID] [--title T] |
+           edit @task ID [--title T] [--expect VER] | delete @task ID
 baton dashboard [--port N] [--host H] [--no-open] [--background|--stop] [--json]
 baton service install|status|restart|uninstall [--dry-run]
 baton auth status|on|off|password|logout-all
@@ -319,11 +322,10 @@ Verified, Refuted (asks for the reason), Edit and Delete. Edit changes the
 title, `when`, keywords and text, keeps the id and the other fields, and
 shows the diff before saving, since tips have no history.
 
-Docs have a Docs tab next to Tasks and Tips (global docs sit with the global
-tips), and `+` offers Doc as well. A doc panel shows the
-tasks that link to it, with Copy, Edit and
-Delete; Edit saves without a diff, and a file changed in the meantime is not
-overwritten.
+A task panel has Latest, History and Docs tabs. Docs lists the docs of that
+task with `+ Doc`; a doc opens in place with Copy, Edit and Delete. Edit saves
+without a diff, and a file changed in the meantime is not overwritten. A
+`[[id]]` link or a search hit on a doc opens the task on its Docs tab.
 
 In a handoff, doc or tip, `@task` links to a task of the same project and
 `[[name]]` (or `[[name|label]]`, as in Obsidian) to a task, else a doc, else a

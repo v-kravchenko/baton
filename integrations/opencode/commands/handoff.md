@@ -24,7 +24,7 @@ bodies to `baton save`, `baton docs new|edit` and `baton tips new` on stdin.
    instead of code. Do not repeat git log,
    CLAUDE.md, README or tips (name the tip ID). A stable user preference
    becomes a tip with `origin: user`. Longer stable text goes into a doc
-   (step 4) linked as `[[doc-id]]`. Save with a quoted heredoc:
+   (step 4) attached to the task. Save with a quoted heredoc:
 
    ```bash
    baton save @task --title "Short title" <<'HANDOFF'
@@ -37,12 +37,12 @@ bodies to `baton save`, `baton docs new|edit` and `baton tips new` on stdin.
    again.
 4. Docs: a plan, workflow, rules or agreement from the user (copied as is),
    a section unchanged for two handoffs and over ~10 lines,
-   or text several tasks need becomes a doc. Check `baton docs list`, then
-   `baton docs new`
+   or text several tasks need becomes a doc of this task (saved in step 3). Check
+   `baton docs list @task`, then `baton docs new @task`
    with the body (and `title:` frontmatter) in a quoted heredoc, and leave a
    `[[doc-id]]` line in the handoff. Never change a doc without the
-   user's consent; change it with `baton docs edit ID` (full
-   body on stdin) or remove it with `baton docs delete ID`.
+   user's consent; change it with `baton docs edit @task ID` (full
+   body on stdin) or remove it with `baton docs delete @task ID`.
 5. Tips: for each non-obvious trap worth keeping, run `baton tips search WORDS`
    for duplicates, then either `baton tips supersede OLD NEW` or
    `baton tips verified ID`, or add one (`--global` if not project-specific;

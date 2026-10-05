@@ -143,7 +143,7 @@ func (s *Server) apiProject(w http.ResponseWriter, r *http.Request) (any, error)
 		return nil, err
 	}
 	tips.Sort(ts)
-	ds, err := s.Docs.List(p)
+	ds, err := s.Docs.List(p, "")
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +210,11 @@ func (s *Server) apiTask(w http.ResponseWriter, r *http.Request) (any, error) {
 	for _, x := range hist {
 		hj = append(hj, taskOf(x))
 	}
-	out := map[string]any{"project": p, "handoff": taskOf(h), "body": h.Body, "version": h.Version, "history": hj, "forks": nonNil(s.Store.Forks(p, t)), "pickup": s.pickups(p, t),
+	ds, err := s.Docs.List(p, t)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]any{"project": p, "handoff": taskOf(h), "docs": docList(ds), "body": h.Body, "version": h.Version, "history": hj, "forks": nonNil(s.Store.Forks(p, t)), "pickup": s.pickups(p, t),
 		"obsidian": s.cfg().ObsidianURL(h.Path)}
 	if dir := s.paths()[p]; dir != "" {
 		if st, err := os.Stat(dir); err == nil && st.IsDir() {
@@ -689,8 +693,8 @@ func (s *Server) apiSearch(w http.ResponseWriter, r *http.Request) (any, error) 
 		out["tasks"] = hits
 	}
 	var dj []docJSON
-	for _, sc := range append(s.Store.Projects(), store.Global) {
-		ds, _ := s.Docs.List(sc)
+	for _, p := range s.Store.Projects() {
+		ds, _ := s.Docs.List(p, "")
 		for _, d := range ds {
 			text := strings.ToLower(d.ID + " " + d.Title + "\n" + d.Body)
 			all := true
@@ -743,16 +747,16 @@ func nonNil[T any](s []T) []T {
 }
 
 type docJSON struct {
-	ID      string   `json:"id"`
-	Scope   string   `json:"scope"`
-	Title   string   `json:"title"`
-	Updated string   `json:"updated"`
-	Body    string   `json:"body,omitempty"`
-	UsedBy  []string `json:"used_by,omitempty"`
+	ID      string `json:"id"`
+	Project string `json:"project"`
+	Task    string `json:"task"`
+	Title   string `json:"title"`
+	Updated string `json:"updated"`
+	Body    string `json:"body,omitempty"`
 }
 
 func docOf(d *docs.Doc, body bool) docJSON {
-	j := docJSON{ID: d.ID, Scope: d.Scope, Title: d.Title,
+	j := docJSON{ID: d.ID, Project: d.Project, Task: d.Task, Title: d.Title,
 		Updated: d.Updated.Format(time.RFC3339)}
 	if body {
 		j.Body = d.Body
@@ -768,18 +772,12 @@ func docList(ds []*docs.Doc) []docJSON {
 	return out
 }
 
-// apiDocs lists the global docs; project docs come with the project.
-func (s *Server) apiDocs(w http.ResponseWriter, r *http.Request) (any, error) {
-	ds, err := s.Docs.List(store.Global)
-	return docList(ds), err
-}
-
 func (s *Server) docParam(r *http.Request) (*docs.Doc, error) {
-	scope, err := store.TaskName(r.PathValue("scope"))
+	p, t, err := s.taskParam(r)
 	if err != nil {
-		return nil, errStatus(http.StatusNotFound, "no such doc")
+		return nil, err
 	}
-	d, err := s.Docs.Get(r.PathValue("id"), scope)
+	d, err := s.Docs.Get(p, t, r.PathValue("id"))
 	if err != nil {
 		return nil, errStatus(http.StatusNotFound, "no such doc")
 	}
@@ -791,15 +789,10 @@ func (s *Server) apiDoc(w http.ResponseWriter, r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	j := docOf(d, true)
-	if d.Scope != store.Global {
-		j.UsedBy = docs.Backlinks(s.Store, d.Scope, d.ID)
-	}
-	return map[string]any{"doc": j, "version": d.Version, "obsidian": s.cfg().ObsidianURL(d.Path)}, nil
+	return map[string]any{"doc": docOf(d, true), "version": d.Version, "obsidian": s.cfg().ObsidianURL(d.Path)}, nil
 }
 
 type docEditJSON struct {
-	Scope   string `json:"scope"`
 	Title   string `json:"title"`
 	Body    string `json:"body"`
 	Version string `json:"version"`
@@ -813,22 +806,22 @@ func decodeDoc(r *http.Request) (docEditJSON, error) {
 	return in, nil
 }
 
-// apiDocNew writes a doc in a project or global scope.
+// apiDocNew writes a doc of a task.
 func (s *Server) apiDocNew(w http.ResponseWriter, r *http.Request) (any, error) {
-	in, err := decodeDoc(r)
+	p, t, err := s.taskParam(r)
 	if err != nil {
 		return nil, err
 	}
-	scope, err := store.TaskName(in.Scope)
-	if err != nil || (scope != store.Global && !s.Store.Exists(scope)) {
-		return nil, errStatus(http.StatusBadRequest, "no such project")
+	in, err := decodeDoc(r)
+	if err != nil {
+		return nil, err
 	}
 	body := in.Body
 	// A body starting with "---" would be read as frontmatter: keep it text.
 	if strings.HasPrefix(strings.TrimSpace(body), "---") {
 		body = "\n" + body
 	}
-	d, warns, err := s.Docs.New(docs.NewInput{Scope: scope, Title: in.Title, Body: body})
+	d, warns, err := s.Docs.New(docs.NewInput{Project: p, Task: t, Title: in.Title, Body: body})
 	if err != nil {
 		return nil, err
 	}

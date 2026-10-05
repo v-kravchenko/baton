@@ -1,7 +1,8 @@
-// Package docs stores longer, stable documents of a project (plans,
-// decisions, agreements) that handoffs link to with [[id]]. Docs live in
-// <root>/<project>/docs and <root>/global/docs. There is no history and no
-// status: a doc is edited in place or deleted.
+// Package docs stores longer, stable documents of a task (plans, decisions,
+// agreements) attached to its handoff. Docs live in
+// <root>/<project>/docs/<task>/<id>.md and follow the task through done,
+// restore and rename. There is no history and no status: a doc is edited in
+// place or deleted.
 package docs
 
 import (
@@ -12,7 +13,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -29,7 +29,8 @@ const MaxChars = 8000
 // Doc is one doc file.
 type Doc struct {
 	ID      string
-	Scope   string // project key or store.Global
+	Project string
+	Task    string
 	Path    string
 	FM      *store.Frontmatter
 	Body    string
@@ -53,14 +54,14 @@ func (s *Store) now() time.Time {
 	return time.Now()
 }
 
-func (s *Store) dir(scope string) string { return filepath.Join(s.Root, scope, "docs") }
+func (s *Store) dir(p, t string) string { return filepath.Join(s.Root, p, "docs", t) }
 
 func (s *Store) lock() (func(), error) {
 	return fsutil.Lock(filepath.Join(s.LockDir, "locks", "docs.lock"))
 }
 
 // Read parses a doc file.
-func Read(path, scope string) (*Doc, error) {
+func Read(path, project, task string) (*Doc, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -70,7 +71,7 @@ func Read(path, scope string) (*Doc, error) {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	sum := sha256.Sum256(data)
-	d := &Doc{ID: strings.TrimSuffix(filepath.Base(path), ".md"), Scope: scope, Path: path, FM: fm, Body: body,
+	d := &Doc{ID: strings.TrimSuffix(filepath.Base(path), ".md"), Project: project, Task: task, Path: path, FM: fm, Body: body,
 		Version: hex.EncodeToString(sum[:8])}
 	d.load()
 	if d.Updated.IsZero() {
@@ -91,14 +92,28 @@ func (d *Doc) load() {
 	d.Updated, _ = time.Parse(time.RFC3339, fm.Get("updated"))
 }
 
-// List returns docs of the given scopes, newest update first.
-func (s *Store) List(scopes ...string) ([]*Doc, error) {
-	var out []*Doc
-	for _, sc := range scopes {
-		if sc == "" {
-			continue
+// List returns the docs of a task, newest update first. An empty task lists
+// the docs of every task of the project.
+func (s *Store) List(p, t string) ([]*Doc, error) {
+	tasks := []string{t}
+	if t == "" {
+		ents, err := os.ReadDir(filepath.Join(s.Root, p, "docs"))
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil, nil
+			}
+			return nil, err
 		}
-		ents, err := os.ReadDir(s.dir(sc))
+		tasks = nil
+		for _, e := range ents {
+			if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
+				tasks = append(tasks, e.Name())
+			}
+		}
+	}
+	var out []*Doc
+	for _, task := range tasks {
+		ents, err := os.ReadDir(s.dir(p, task))
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				continue
@@ -110,7 +125,7 @@ func (s *Store) List(scopes ...string) ([]*Doc, error) {
 			if e.IsDir() || strings.HasPrefix(n, ".") || !strings.HasSuffix(n, ".md") || strings.Contains(n, ".sync-conflict-") {
 				continue
 			}
-			d, err := Read(filepath.Join(s.dir(sc), n), sc)
+			d, err := Read(filepath.Join(s.dir(p, task), n), p, task)
 			if err != nil {
 				return out, err
 			}
@@ -125,37 +140,34 @@ func validID(id string) bool {
 	return id != "" && !strings.ContainsAny(id, `/\`) && !strings.HasPrefix(id, ".")
 }
 
-// Get finds a doc by id in the scopes, in order.
-func (s *Store) Get(id string, scopes ...string) (*Doc, error) {
-	if !validID(id) {
+// Get finds a doc of a task by id.
+func (s *Store) Get(p, t, id string) (*Doc, error) {
+	if !validID(id) || !validID(t) {
 		return nil, fmt.Errorf("invalid doc id %q", id)
 	}
-	for _, sc := range scopes {
-		if sc == "" {
-			continue
-		}
-		d, err := Read(filepath.Join(s.dir(sc), id+".md"), sc)
-		if err == nil {
-			return d, nil
-		}
-		if !errors.Is(err, fs.ErrNotExist) {
-			return nil, err
-		}
+	d, err := Read(filepath.Join(s.dir(p, t), id+".md"), p, t)
+	if err == nil {
+		return d, nil
 	}
-	return nil, fmt.Errorf("no doc %q", id)
+	if !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+	return nil, fmt.Errorf("no doc %q in @%s", id, t)
 }
 
 // NewInput describes a doc to create.
 type NewInput struct {
-	Scope string
-	ID    string // optional; else a slug of the title
-	Body  string // may start with frontmatter (title)
-	Title string
+	Project string
+	Task    string
+	ID      string // optional; else a slug of the title
+	Body    string // may start with frontmatter (title)
+	Title   string
 }
 
-// New writes a doc and returns it with size warnings. A [[name]] in a
-// handoff resolves to a task first, so the id must not be a task or tip
-// name of the scope: an explicit ID that is taken fails, a slug gets -2, -3...
+// New writes a doc of an existing task and returns it with size warnings. A
+// [[name]] in a handoff resolves to a task first, so the id must not be a task
+// or tip name of the project: an explicit ID that is
+// taken fails, a slug gets -2, -3...
 func (s *Store) New(in NewInput) (*Doc, []string, error) {
 	fm, body, err := store.Split([]byte(in.Body))
 	if err != nil {
@@ -178,8 +190,11 @@ func (s *Store) New(in NewInput) (*Doc, []string, error) {
 	if body == "" {
 		return nil, nil, fmt.Errorf("empty doc body (pass it on stdin)")
 	}
-	if in.Scope == "" {
-		return nil, nil, fmt.Errorf("doc needs a scope")
+	if in.Project == "" || !validID(in.Task) {
+		return nil, nil, fmt.Errorf("doc needs a project and a task")
+	}
+	if !s.taskExists(in.Project, in.Task) {
+		return nil, nil, fmt.Errorf("no task %q in project %s", in.Task, in.Project)
 	}
 
 	// Fields of other tools (Obsidian tags, ...) passed on stdin are kept.
@@ -199,8 +214,8 @@ func (s *Store) New(in NewInput) (*Doc, []string, error) {
 		if !validID(id) {
 			return nil, nil, fmt.Errorf("invalid doc id %q", id)
 		}
-		if what := s.taken(in.Scope, id); what != "" {
-			return nil, nil, fmt.Errorf("%s already has a %s %q", in.Scope, what, id)
+		if what := s.taken(in.Project, in.Task, id); what != "" {
+			return nil, nil, fmt.Errorf("%s already has a %s %q", in.Project, what, id)
 		}
 	} else {
 		base := tips.Words(title)
@@ -208,26 +223,40 @@ func (s *Store) New(in NewInput) (*Doc, []string, error) {
 			base = "doc"
 		}
 		id = base
-		for i := 2; s.taken(in.Scope, id) != ""; i++ {
+		for i := 2; s.taken(in.Project, in.Task, id) != ""; i++ {
 			id = fmt.Sprintf("%s-%d", base, i)
 		}
 	}
-	path := filepath.Join(s.dir(in.Scope), id+".md")
+	path := filepath.Join(s.dir(in.Project, in.Task), id+".md")
 	if err := fsutil.WriteFileAtomic(path, store.Compose(out, body+"\n"), 0o644); err != nil {
 		return nil, nil, err
 	}
-	d, err := Read(path, in.Scope)
+	d, err := Read(path, in.Project, in.Task)
 	return d, budget(body), err
 }
 
-// taken names what already uses id in scope ("doc", "task", "tip") or "".
-func (s *Store) taken(scope, id string) string {
-	for _, c := range []struct{ what, dir string }{
-		{"doc", "docs"}, {"task", "tasks"}, {"task", "archive"}, {"tip", "tips"},
-	} {
-		if _, err := os.Stat(filepath.Join(s.Root, scope, c.dir, id+".md")); err == nil {
-			return c.what
+// taskExists reports whether t is an active or archived task of p.
+func (s *Store) taskExists(p, t string) bool {
+	for _, dir := range []string{"tasks", "archive"} {
+		if _, err := os.Stat(filepath.Join(s.Root, p, dir, t+".md")); err == nil {
+			return true
 		}
+	}
+	return false
+}
+
+// taken names what already uses id ("doc" of the task, "task", "tip") or "".
+func (s *Store) taken(p, t, id string) string {
+	if _, err := os.Stat(filepath.Join(s.dir(p, t), id+".md")); err == nil {
+		return "doc"
+	}
+	for _, dir := range []string{"tasks", "archive"} {
+		if _, err := os.Stat(filepath.Join(s.Root, p, dir, id+".md")); err == nil {
+			return "task"
+		}
+	}
+	if _, err := os.Stat(filepath.Join(s.Root, p, "tips", id+".md")); err == nil {
+		return "tip"
 	}
 	return ""
 }
@@ -262,7 +291,7 @@ func (s *Store) Edit(d *Doc, in EditInput) (*Doc, []string, error) {
 		return nil, nil, err
 	}
 	defer unlock()
-	cur, err := Read(d.Path, d.Scope)
+	cur, err := Read(d.Path, d.Project, d.Task)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -275,7 +304,7 @@ func (s *Store) Edit(d *Doc, in EditInput) (*Doc, []string, error) {
 	if err := fsutil.WriteFileAtomic(cur.Path, store.Compose(fm, body+"\n"), 0o644); err != nil {
 		return nil, nil, err
 	}
-	out, err := Read(cur.Path, cur.Scope)
+	out, err := Read(cur.Path, cur.Project, cur.Task)
 	return out, budget(body), err
 }
 
@@ -287,52 +316,4 @@ func (s *Store) Delete(d *Doc) error {
 	}
 	defer unlock()
 	return os.Remove(d.Path)
-}
-
-var refRE = regexp.MustCompile(`\[\[([^\]|\n]+)(?:\|[^\]\n]*)?\]\]`)
-
-// Refs returns the distinct [[name]] targets of a text, in order.
-func Refs(text string) []string {
-	var out []string
-	seen := map[string]bool{}
-	for _, m := range refRE.FindAllStringSubmatch(text, -1) {
-		n := strings.TrimSpace(m[1])
-		if n != "" && !seen[n] {
-			seen[n] = true
-			out = append(out, n)
-		}
-	}
-	return out
-}
-
-// Linked returns the docs of scopes that text links to with [[id]], in
-// link order; names that are not docs are skipped.
-func (s *Store) Linked(text string, scopes ...string) []*Doc {
-	var out []*Doc
-	for _, id := range Refs(text) {
-		if validID(id) {
-			if d, err := s.Get(id, scopes...); err == nil {
-				out = append(out, d)
-			}
-		}
-	}
-	return out
-}
-
-// Backlinks returns the tasks (active and archived) of project p whose
-// handoff links to the doc id with [[id]].
-func Backlinks(st *store.Store, p, id string) []string {
-	var out []string
-	for _, list := range []func(string) ([]*store.Handoff, error){st.Tasks, st.Archived} {
-		hs, _ := list(p)
-		for _, h := range hs {
-			for _, r := range Refs(h.Body) {
-				if r == id {
-					out = append(out, h.Task)
-					break
-				}
-			}
-		}
-	}
-	return out
 }

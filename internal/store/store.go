@@ -544,7 +544,7 @@ func (s *Store) Restore(p, t string) (*Handoff, error) {
 	return s.read(p, t, false)
 }
 
-// Rename renames a task (active or archived) with its history and updates
+// Rename renames a task (active or archived) with its history and docs and updates
 // `from` in its forks. It returns the forks that were updated.
 func (s *Store) Rename(p, oldT, newT string) ([]string, error) {
 	if oldT == newT {
@@ -568,6 +568,9 @@ func (s *Store) Rename(p, oldT, newT string) ([]string, error) {
 	if _, err := os.Stat(s.historyDir(p, newT)); err == nil {
 		return nil, fmt.Errorf("history for %q already exists: %s", newT, s.historyDir(p, newT))
 	}
+	if d := filepath.Join(s.ProjectDir(p), "docs", newT); dirExists(d) {
+		return nil, fmt.Errorf("docs for %q already exist: %s", newT, d)
+	}
 	dst := s.taskPath(p, newT)
 	if h.Archived {
 		dst = s.archivePath(p, newT)
@@ -577,6 +580,12 @@ func (s *Store) Rename(p, oldT, newT string) ([]string, error) {
 	}
 	if _, err := os.Stat(s.historyDir(p, oldT)); err == nil {
 		if err := fsutil.Rename(s.historyDir(p, oldT), s.historyDir(p, newT)); err != nil {
+			return nil, err
+		}
+	}
+	oldDocs, newDocs := filepath.Join(s.ProjectDir(p), "docs", oldT), filepath.Join(s.ProjectDir(p), "docs", newT)
+	if _, err := os.Stat(oldDocs); err == nil {
+		if err := fsutil.Rename(oldDocs, newDocs); err != nil {
 			return nil, err
 		}
 	}
@@ -624,4 +633,9 @@ func FirstHeading(body string) string {
 		}
 	}
 	return ""
+}
+
+func dirExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && st.IsDir()
 }

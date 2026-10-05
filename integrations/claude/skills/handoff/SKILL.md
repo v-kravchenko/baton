@@ -49,7 +49,7 @@ The reader is the next agent and the user scanning it. Write for a glance:
   preference that is not specific to this task becomes a tip with
   `origin: user`, not a handoff line.
 - Longer stable text (a plan or rules the user gave, an agreement, a spec)
-  goes into a doc (step 4); the handoff keeps one line with `[[doc-id]]`.
+  goes into a doc of this task (step 4); the handoff may name it as `[[doc-id]]`.
 
 Good: `- update: TLS fails on Termux, fix in internal/update/http.go:40 (not started)`
 Bad: `- This session we looked into update and found that on Termux, because the
@@ -69,18 +69,20 @@ warns about missing sections or the size budget, fix the body and save again.
 
 ## 4. Docs
 
-A doc holds text that should not be rewritten every session. Make one when:
+A doc is attached to one task and holds text that should not be rewritten
+every session. Make one when:
 
 - the user gave a plan, a workflow, rules or an agreement: copy their words
   as is;
 - a section has stayed the same for two handoffs and is over ~10 lines;
 - several tasks need the same text.
 
-Check `baton docs list` first. Write the doc, then replace the section in
-the handoff with a line such as `Workflow: [[migration-workflow]]`:
+Check `baton docs list @task` first. The task must be saved already (step 3).
+Write the doc, then replace the section in the handoff with a line such as
+`Workflow: [[migration-workflow]]` (`baton show` lists the task's docs anyway):
 
 ```bash
-baton docs new <<'DOC'
+baton docs new @task <<'DOC'
 ---
 title: Migration workflow
 ---
@@ -89,8 +91,8 @@ DOC
 ```
 
 Never change a doc without the user's consent. A small fix:
-`baton docs edit ID` (the full new body on stdin); a doc that is no longer
-needed: `baton docs delete ID`, and drop its links.
+`baton docs edit @task ID` (the full new body on stdin); a doc that is no
+longer needed: `baton docs delete @task ID`, and drop its links.
 
 ## 5. Tips
 

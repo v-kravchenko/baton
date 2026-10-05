@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0
+
+- Docs are attached to a task: `<root>/<project>/docs/<task>/<id>.md`. They
+  follow the task through done, restore and rename; a fork does not copy
+  them. `baton docs list|show|new|edit|delete @task [ID]`; `baton show`
+  lists the docs of the task without a `[[id]]` link. Global docs are gone.
+- Dashboard: a Docs tab in the task panel (list, `+ Doc`, open, Copy, Edit,
+  Delete) instead of the project Docs tab; `[[id]]` and search hits on a doc
+  open the task on its Docs tab. `[[task/id]]` links to a doc of another task.
+- Migration (by hand): move `<project>/docs/*.md` into `docs/<task>/`. Older
+  baton versions do not read docs in subdirectories.
+
 ## 0.1.13
 
 - Dashboard: the open panel is part of the URL (`#<pick>/t/<project>/<task>`,
