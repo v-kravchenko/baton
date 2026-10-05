@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.10
+
+- A handoff saved in the home directory goes to the project `home`, not
+  to the user name (`vova`, `root`, ...).
+- Dashboard: Copy in a task panel puts the handoff Markdown on the
+  clipboard (key `c`); the panel actions form one button group. The
+  card button that copies `baton pickup` is now labelled Pickup.
+
 ## 0.1.9
 
 - The dashboard writes: `+` in a project header starts a task with a short

@@ -34,6 +34,23 @@ func TestProjectKey(t *testing.T) {
 	}
 }
 
+func TestProjectKeyHome(t *testing.T) {
+	home := filepath.Join(t.TempDir(), "Vova")
+	if err := os.Mkdir(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	defer func(f func() (string, error)) { userHome = f }(userHome)
+	userHome = func() (string, error) { return home, nil }
+	for _, dir := range []string{home, home + string(filepath.Separator)} {
+		if got, err := ProjectKey(dir); err != nil || got != Home {
+			t.Errorf("%s = %q %v, want %q", dir, got, err, Home)
+		}
+	}
+	if got, _ := ProjectKey(filepath.Join(home, "api")); got != "api" {
+		t.Errorf("subdir = %q", got)
+	}
+}
+
 func TestTaskName(t *testing.T) {
 	for _, ok := range []string{"@Api-Refactor", "console", "com10", "lpt"} {
 		if _, err := TaskName(ok); err != nil {

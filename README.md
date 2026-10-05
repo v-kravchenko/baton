@@ -74,6 +74,9 @@ affect it. Consequences, accepted on purpose:
 - a renamed directory is a new project; move the old data with
   `mv <root>/<old> <root>/<new>`.
 
+The home directory itself (`~`, a session started outside any project) is
+the project `home` for every user name and machine, so it syncs as one.
+
 `global` is reserved; baton refuses a project directory with that name.
 
 ### Root layout
@@ -274,7 +277,8 @@ follows the first `# ` heading, branch and commit come from the project
 directory on this machine or stay as they were): `+` in a project header
 starts a task with a short form (title, a name suggested from it, goal and a
 first step; Full editor continues with the whole template), and a task panel has Edit, Fork (a new task
-with `from` set, starting from the parent's text) and, per history entry,
+with `from` set, starting from the parent's text), Copy (the handoff Markdown to the
+clipboard) and, per history entry,
 Restore (save that version as the current one). Checklist items (`1. [ ]`
 in Next steps) tick with a click; that rewrites the current handoff in
 place, without a history entry or a new save time. A save carries the version
@@ -292,7 +296,7 @@ shows the diff before saving, since tips have no history.
 In a handoff or tip, `@task` links to a task of the same project and
 `[[name]]` (or `[[name|label]]`, as in Obsidian) to a task or else a tip of
 the project or global; unknown names stay text. Keys: `/` search, `n` new
-task in the picked project, `e` Edit and `f` Fork in the open panel. The
+task in the picked project, `e` Edit, `f` Fork and `c` Copy in the open panel. The
 picked project is remembered in the browser. The dashboard is an installable
 app (manifest and service worker; browsers allow it on https or localhost):
 the page and static files work offline from the last copy, the API is never

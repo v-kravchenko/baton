@@ -420,7 +420,11 @@
     if (d.history.length) hist.appendChild(el("span", "count", String(d.history.length + 1)));
     const bar = el("div", "dbar");
     bar.appendChild(tabs);
-    actions.forEach((a) => bar.appendChild(a));
+    // One joined group of buttons, right of the tabs.
+    const group = el("div", "bgroup");
+    group.setAttribute("role", "group");
+    actions.forEach((a) => group.appendChild(a));
+    bar.appendChild(group);
     const crumbs = gitCrumbs(d.handoff);
     if (crumbs) box.appendChild(crumbs);
     box.appendChild(bar);
@@ -541,6 +545,16 @@
       });
       if (d.obsidian) row.appendChild(obsidianLink(d.obsidian));
       const acts = [];
+      // The Markdown of the current handoff (ticks included); shown for a
+      // manual copy when the clipboard is unavailable.
+      const cp = ibtn("copy", "Copy", "copy");
+      cp.title = "copy the handoff Markdown (c)";
+      cp.dataset.hotkey = "c";
+      const text = el("pre", "manual");
+      text.hidden = true;
+      cp.addEventListener("click", () => { text.textContent = d.body; copy(d.body, cp, text, "Copy"); });
+      acts.push(cp);
+      codes.push(text);
       const edit = ibtn("edit", "Edit");
       edit.title = "edit the handoff (e); saved like baton save, the current text goes to History";
       edit.dataset.hotkey = "e";
@@ -1087,7 +1101,7 @@
   function card(t, depth, shown) {
     const c = el("div", "item");
     c.dataset.key = "t:" + keyOf(t);
-    const [copyBtn, code] = copyButton("Copy", command(t));
+    const [copyBtn, code] = copyButton("Pickup", command(t));
     const [head, main] = cardHead(t.title === t.task ? "" : t.title, "@" + t.task, chips(t, false, shown),
       t.created, when(t.created), [copyBtn, arrow()], depth && t.archived ? "done" : "open");
     const snippet = hits.get(keyOf(t));

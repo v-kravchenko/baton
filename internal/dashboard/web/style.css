@@ -232,6 +232,7 @@ body.noscroll { overflow: hidden; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
 .actions .file { flex: 1; margin: 0; min-width: 0; }
 .item code { font-size: .9em; background: var(--code); border-radius: 4px; padding: 0 4px; word-break: break-word; }
+pre.manual { margin: 8px 0; padding: 6px 8px; background: var(--code); border-radius: 6px; font-size: 13px; max-height: 40vh; overflow: auto; white-space: pre-wrap; }
 code.manual { display: block; margin-top: 8px; padding: 4px 8px; overflow-x: auto; white-space: nowrap; }
 .details { margin-top: 10px; overflow-wrap: anywhere; }
 .tabs { margin: 6px 0 2px; }
@@ -271,6 +272,14 @@ pre.diff .hunk { color: var(--accent); }
 #pbody .dbar > button, #pbody .actions > button { font-weight: 500; padding: 6px 12px; border-radius: 8px; }
 #pbody .dbar > button:not(.primary):hover, #pbody .actions > button:hover { background: var(--code); }
 #pbody .ib svg { width: 18px; height: 18px; }
+/* Task actions as one button group: a shared outline, dividers between. */
+.bgroup { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; background: var(--card); overflow: hidden; }
+#pbody .bgroup > button { border: 0; border-radius: 0; padding: 6px 12px; font-weight: 500; color: var(--fg); background: none; }
+#pbody .bgroup > button + button { border-left: 1px solid var(--line); }
+#pbody .bgroup > button:hover { background: var(--code); }
+#pbody .bgroup > button.ok { color: var(--ok); }
+#pbody .bgroup > button:focus-visible { outline-offset: -2px; }
+@media (max-width: 520px) { #pbody .bgroup .lbl { display: none; } #pbody .bgroup > button { padding: 6px 10px; } }
 /* A link shaped like a button (Obsidian); colours come from .agents .ghost. */
 a.lbtn { border: 1px solid transparent; border-radius: 8px;
   padding: 6px 12px; font-size: 14px; line-height: 20px; text-decoration: none; }

@@ -23,9 +23,19 @@ const Global = "global"
 // HistoryStamp is the UTC layout of history file names.
 const HistoryStamp = "20060102T150405Z"
 
+// Home is the project key of the user's home directory, the same for every
+// user name and machine.
+const Home = "home"
+
+// userHome is os.UserHomeDir, swapped in tests.
+var userHome = os.UserHomeDir
+
 // ProjectKey derives the project key from a directory name: lower case, every
-// rune outside a-z0-9._- replaced with '-'.
+// rune outside a-z0-9._- replaced with '-'. The home directory is Home.
 func ProjectKey(dir string) (string, error) {
+	if isHome(dir) {
+		return Home, nil
+	}
 	base := filepath.Base(filepath.Clean(dir))
 	if base == "." || base == string(filepath.Separator) || base == "" {
 		return "", fmt.Errorf("cannot derive a project key from %q", dir)
@@ -41,6 +51,21 @@ func ProjectKey(dir string) (string, error) {
 		return "", fmt.Errorf("directory name %q is a reserved device name on Windows; rename the directory", base)
 	}
 	return key, nil
+}
+
+// isHome reports whether dir is the user's home directory (symlinks and, on
+// Windows, letter case included).
+func isHome(dir string) bool {
+	h, err := userHome()
+	if err != nil || h == "" {
+		return false
+	}
+	if filepath.Clean(dir) == filepath.Clean(h) {
+		return true
+	}
+	a, err1 := os.Stat(dir)
+	b, err2 := os.Stat(h)
+	return err1 == nil && err2 == nil && os.SameFile(a, b)
 }
 
 func sanitize(s string) string {
