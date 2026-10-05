@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"strings"
 )
 
@@ -70,3 +72,18 @@ type usageError struct{ msg string }
 func (e usageError) Error() string { return e.msg }
 
 func usageErr(format string, a ...any) error { return usageError{fmt.Sprintf(format, a...)} }
+
+func isTerminal(f *os.File) bool {
+	st, err := f.Stat()
+	return err == nil && st.Mode()&os.ModeCharDevice != 0
+}
+
+// readStdin reads the text piped to cmd (file names it in the hint); a
+// terminal on stdin is refused rather than waited on.
+func (app *App) readStdin(cmd, file string) (string, error) {
+	if f, ok := app.Stdin.(*os.File); ok && isTerminal(f) {
+		return "", usageErr("%s reads stdin, pipe it: baton %s < %s", cmd, cmd, file)
+	}
+	b, err := io.ReadAll(app.Stdin)
+	return string(b), err
+}

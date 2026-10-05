@@ -175,6 +175,8 @@ baton version
   none, and fails when there are several. Saving an archived task makes it
   active again. The previous handoff moves to `history/`, keeping `keep`
   entries.
+- Commands that read stdin (`save`, `tips new`, `tips search --error`) exit 2
+  with a hint when stdin is a terminal instead of waiting for input.
 - `show` states: `CHOOSE TASK` (several tasks, none given), `NO TASK` (the
   task does not exist), `ARCHIVED` (the task is done), `NO HANDOFF` (nothing
   active).

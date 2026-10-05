@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -140,11 +139,11 @@ func cmdSave(app *App, a *args) error {
 			app.warnf("parent task @%s does not exist in project %s", from, p)
 		}
 	}
-	body, err := io.ReadAll(app.Stdin)
+	body, err := app.readStdin("save", "body.md")
 	if err != nil {
 		return err
 	}
-	in := store.SaveInput{Body: string(body), Title: a.vals["title"], From: from}
+	in := store.SaveInput{Body: body, Title: a.vals["title"], From: from}
 	if info, ok := gitinfo.Read(app.Cwd); ok {
 		in.Branch, in.Commit = info.Branch, info.Commit
 	}

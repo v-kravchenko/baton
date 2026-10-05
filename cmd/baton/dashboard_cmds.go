@@ -295,11 +295,6 @@ func cmdAuth(app *App, a *args) error {
 	return usageErr("unknown auth subcommand %q", a.pos[0])
 }
 
-func isTerminal(f *os.File) bool {
-	st, err := f.Stat()
-	return err == nil && st.Mode()&os.ModeCharDevice != 0
-}
-
 // readPassword reads a new password: twice without echo on a terminal, or
 // the first line of stdin otherwise.
 func (app *App) readPassword() (string, error) {

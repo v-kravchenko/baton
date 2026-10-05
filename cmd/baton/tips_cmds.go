@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/v-kravchenko/baton/internal/gitinfo"
@@ -85,11 +84,11 @@ func cmdTips(app *App, a *args) error {
 	case "search":
 		q := strings.Join(rest, " ")
 		if q == "" && a.bools["error"] {
-			b, err := io.ReadAll(app.Stdin)
+			b, err := app.readStdin("tips search --error", "error.txt")
 			if err != nil {
 				return err
 			}
-			q = string(b)
+			q = b
 		}
 		if strings.TrimSpace(q) == "" {
 			return usageErr("expected search words")
@@ -179,12 +178,12 @@ func cmdTips(app *App, a *args) error {
 		if len(rest) > 0 {
 			return usageErr("unexpected argument %q", rest[0])
 		}
-		body, err := io.ReadAll(app.Stdin)
+		body, err := app.readStdin("tips new", "tip.md")
 		if err != nil {
 			return err
 		}
 		in := tips.NewInput{
-			Body: string(body), Title: a.vals["title"], When: a.vals["when"], Origin: a.vals["origin"],
+			Body: body, Title: a.vals["title"], When: a.vals["when"], Origin: a.vals["origin"],
 			Keywords: splitList(a.vals["keywords"]), Cites: splitList(a.vals["cites"]), Env: splitList(a.vals["env"]),
 		}
 		p, perr := app.project()

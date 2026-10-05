@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.11
+
+- `baton save` (and `tips new`, `tips search --error`) run without piped
+  input no longer hang waiting on the terminal; they exit with a hint.
+
 ## 0.1.10
 
 - A handoff saved in the home directory goes to the project `home`, not
