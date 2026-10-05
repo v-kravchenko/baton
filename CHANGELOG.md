@@ -2,6 +2,8 @@
 
 ## 0.1.11
 
+- The project `home` always lives in the home directory of the machine at
+  hand: `pickup` and the dashboard use it without a `paths` entry.
 - `baton save` (and `tips new`, `tips search --error`) run without piped
   input no longer hang waiting on the terminal; they exit with a hint.
 

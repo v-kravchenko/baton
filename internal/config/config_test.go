@@ -82,6 +82,16 @@ func TestRememberAndSetKey(t *testing.T) {
 	if p["a"] != "/y/a" {
 		t.Errorf("paths = %v", p)
 	}
+	// home is always d.Home: a paths entry is ignored and never written.
+	os.WriteFile(d.PathsFile(), []byte("home=/elsewhere\na=/y/a\n"), 0o644)
+	Remember(d, HomeKey, "/z")
+	UpdatePaths(d, func(Paths) bool { return true })
+	if p, _ := LoadPaths(d); p[HomeKey] != "/h" || p["a"] != "/y/a" {
+		t.Errorf("paths = %v", p)
+	}
+	if got, _ := os.ReadFile(d.PathsFile()); string(got) != "a=/y/a\n" {
+		t.Errorf("paths file = %q", got)
+	}
 	f := d.ConfigFile()
 	os.WriteFile(f, []byte("# c\r\ndashboard.auth = off # x\r\nkeep = 2\r\n"), 0o644)
 	SetKey(f, "dashboard.auth", "on")

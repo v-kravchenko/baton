@@ -15,6 +15,11 @@ import (
 // Paths maps project key → directory on this machine.
 type Paths map[string]string
 
+// HomeKey is the project of the user's home directory. Its directory is
+// always the home directory of this machine: never read from or written to
+// the paths file.
+const HomeKey = "home"
+
 // ParsePaths parses `key=path` lines. The first `=` separates key and path,
 // so Windows paths (C:\...) work as is. CRLF and `#` comment lines are accepted.
 func ParsePaths(data []byte) Paths {
@@ -35,13 +40,23 @@ func ParsePaths(data []byte) Paths {
 	return p
 }
 
-// LoadPaths reads the paths file; a missing file is empty.
+// LoadPaths reads the paths file (a missing file is empty) and adds HomeKey.
 func LoadPaths(d Dirs) (Paths, error) {
+	p, err := readPaths(d)
+	if d.Home != "" {
+		p[HomeKey] = d.Home
+	}
+	return p, err
+}
+
+func readPaths(d Dirs) (Paths, error) {
 	data, err := os.ReadFile(d.PathsFile())
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return Paths{}, err
 	}
-	return ParsePaths(data), nil
+	p := ParsePaths(data)
+	delete(p, HomeKey)
+	return p, nil
 }
 
 // Keys returns sorted keys.
@@ -71,7 +86,7 @@ func UpdatePaths(d Dirs, fn func(Paths) bool) error {
 		return err
 	}
 	defer unlock()
-	p, err := LoadPaths(d)
+	p, err := readPaths(d)
 	if err != nil {
 		return err
 	}
@@ -81,8 +96,12 @@ func UpdatePaths(d Dirs, fn func(Paths) bool) error {
 	return fsutil.WriteFileAtomic(d.PathsFile(), p.Format(), 0o644)
 }
 
-// Remember records key → dir if it differs from the current entry.
+// Remember records key → dir if it differs from the current entry; HomeKey
+// is never recorded.
 func Remember(d Dirs, key, dir string) error {
+	if key == HomeKey {
+		return nil
+	}
 	cur, _ := LoadPaths(d)
 	if cur[key] == dir {
 		return nil

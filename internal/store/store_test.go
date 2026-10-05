@@ -39,8 +39,8 @@ func TestProjectKeyHome(t *testing.T) {
 	if err := os.Mkdir(home, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	defer func(f func() (string, error)) { userHome = f }(userHome)
-	userHome = func() (string, error) { return home, nil }
+	defer func(f func() string) { userHome = f }(userHome)
+	userHome = func() string { return home }
 	for _, dir := range []string{home, home + string(filepath.Separator)} {
 		if got, err := ProjectKey(dir); err != nil || got != Home {
 			t.Errorf("%s = %q %v, want %q", dir, got, err, Home)

@@ -29,6 +29,9 @@ func cmdPath(app *App, a *args) error {
 		if err != nil || key == store.Global {
 			return fmt.Errorf("invalid project key %q", a.pos[1])
 		}
+		if key == store.Home {
+			return fmt.Errorf("project %q is always the home directory; it has no paths entry", key)
+		}
 		dir, err := filepath.Abs(a.pos[2])
 		if err != nil {
 			return err

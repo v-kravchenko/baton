@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/v-kravchenko/baton/internal/config"
 	"github.com/v-kravchenko/baton/internal/fsutil"
 )
 
@@ -25,10 +26,10 @@ const HistoryStamp = "20060102T150405Z"
 
 // Home is the project key of the user's home directory, the same for every
 // user name and machine.
-const Home = "home"
+const Home = config.HomeKey
 
-// userHome is os.UserHomeDir, swapped in tests.
-var userHome = os.UserHomeDir
+// userHome is config.Home, swapped in tests.
+var userHome = config.Home
 
 // ProjectKey derives the project key from a directory name: lower case, every
 // rune outside a-z0-9._- replaced with '-'. The home directory is Home.
@@ -56,8 +57,8 @@ func ProjectKey(dir string) (string, error) {
 // isHome reports whether dir is the user's home directory (symlinks and, on
 // Windows, letter case included).
 func isHome(dir string) bool {
-	h, err := userHome()
-	if err != nil || h == "" {
+	h := userHome()
+	if h == "" {
 		return false
 	}
 	if filepath.Clean(dir) == filepath.Clean(h) {

@@ -75,7 +75,9 @@ affect it. Consequences, accepted on purpose:
   `mv <root>/<old> <root>/<new>`.
 
 The home directory itself (`~`, a session started outside any project) is
-the project `home` for every user name and machine, so it syncs as one.
+the project `home` for every user name and machine, so it syncs as one. Its
+directory is always the home directory of the machine at hand (`pickup`, the
+dashboard), on every OS; it has no `paths` entry.
 
 `global` is reserved; baton refuses a project directory with that name.
 
@@ -187,7 +189,8 @@ baton version
 
 `~/.config/baton/paths` maps a project key to its directory on this machine.
 `save` and `show` record the current directory silently: the last one used
-wins. Manage it with `baton path set|list|prune`.
+wins. Manage it with `baton path set|list|prune`; `home` is never stored
+there (`path list` shows it, `path set home` is refused).
 
 `baton pickup PROJECT` uses the recorded directory. If it is missing and the
 current directory has the same key, it uses (and records) the current
