@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.13
+
+- Dashboard: the open panel is part of the URL (`#<pick>/t/<project>/<task>`,
+  `/p/` tip, `/d/` doc). Opening a panel is a history entry, so Back
+  (on a phone too) closes it; a reload or a shared link reopens it.
+
 ## 0.1.12
 
 - Docs: longer, stable text of a project (a plan or rules from the user,

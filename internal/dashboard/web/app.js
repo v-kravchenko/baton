@@ -281,7 +281,7 @@
   }
   function openTask(t) {
     if (t.archived && !state.archOpen.includes(t.project)) { state.archOpen.push(t.project); render(); }
-    openPanel("t:" + keyOf(t), hue(t.project), projectWho(t.project), (body) => taskPanel(t, body));
+    openPanel("t:" + keyOf(t), hue(t.project), projectWho(t.project), (body) => taskPanel(t, body), taskRef(t));
   }
 
   // Card head: title and a "@task · chips" line; age and buttons on the right.
@@ -341,8 +341,59 @@
   };
   const globalWho = () => whoNode(icon("globe"), "Global tips", "every project", "");
 
-  function openPanel(key, h, where, build) {
+  // The open panel is part of the URL ("#<pick>/t/<project>/<task>", /p/ tip,
+  // /d/ doc) and each opening from the closed state is a history entry, so
+  // Back closes the panel instead of leaving the dashboard. history.state.d
+  // counts the entries pushed since the page without a panel.
+  // History calls remember the entry shown, to step back to it when a Back is refused.
+  let cur = { s: history.state, u: location.href };
+  const hpush = (st, t, u) => { history.pushState(st, t, u); cur = { s: history.state, u: location.href }; };
+  const hrep = (st, t, u) => { history.replaceState(st, t, u); cur = { s: history.state, u: location.href }; };
+  const histDepth = () => (history.state && history.state.d) || 0;
+  const pickHash = (v) => (v === "all" ? "" : v === GLOBAL ? "global-tips" : enc(v));
+  function panelFromHash() {
+    const m = location.hash.slice(1).split("/");
+    if (m.length !== 4 || !/^[tpd]$/.test(m[1])) return null;
+    try { return { k: m[1], scope: decodeURIComponent(m[2]), id: decodeURIComponent(m[3]) }; } catch (e) { return null; }
+  }
+  const sameRef = (a, b) => !!a && !!b && a.k === b.k && a.scope === b.scope && a.id === b.id;
+  let navigating = false; // a popstate is being applied: no new history entry
+  function pushPanel(ref) {
+    if (navigating) return;
+    const was = $("#panel").hidden;
+    if (!was && (!ref || sameRef(ref, panelFromHash()))) return;
+    const base = pickHash(state.proj);
+    const h = "#" + base + (ref ? "/" + ref.k + "/" + enc(ref.scope) + "/" + enc(ref.id) : "");
+    hpush({ d: was ? 1 : histDepth() + 1 }, "", h);
+  }
+  const taskRef = (t) => ({ k: "t", scope: t.project, id: t.task });
+  const tipRef = (t) => ({ k: "p", scope: t.scope, id: t.id });
+  const docRef = (d) => ({ k: "d", scope: d.scope, id: d.id });
+  // Opens (or closes) the panel the URL names; a page opened on a panel link
+  // first gets the entry below it, so closing has somewhere to go.
+  function syncPanel(ref) {
+    navigating = true;
+    try {
+      if (!ref) { hidePanel(); return; }
+      let obj = null;
+      if (ref.k === "t") {
+        const pr = projectOf(ref.scope);
+        obj = pr && pr.tasks.find((t) => t.task === ref.id);
+        if (obj) openTask(obj);
+      } else {
+        const pool = ref.k === "p" ? allTips() : allDocs();
+        obj = pool.find((x) => x.scope === ref.scope && x.id === ref.id);
+        if (obj) (ref.k === "p" ? openTip : openDoc)(obj);
+      }
+      if (!obj) { hidePanel(); hrep({ d: 0 }, "", "#" + pickHash(state.proj)); }
+    } finally { navigating = false; }
+  }
+  const allTips = () => data.global.concat(...data.projects.map((p) => p.tips));
+  const allDocs = () => data.gdocs.concat(...data.projects.map((p) => p.docs));
+
+  function openPanel(key, h, where, build, ref) {
     if (!leaveEditor()) return;
+    pushPanel(ref);
     const p = $("#panel");
     p.style.setProperty("--h", h);
     $("#pwhere").textContent = "";
@@ -361,6 +412,13 @@
   }
   function closePanel() {
     if ($("#panel").hidden || !leaveEditor()) return;
+    const d = histDepth();
+    if (d > 0) { history.go(-d); return; } // popstate hides the panel
+    hrep({ d: 0 }, "", "#" + pickHash(state.proj));
+    hidePanel();
+  }
+  function hidePanel() {
+    if ($("#panel").hidden) return;
     $("#panel").hidden = true;
     $("#scrim").hidden = true;
     document.body.classList.remove("noscroll");
@@ -900,7 +958,7 @@
 
   function openTip(tip) {
     const g = tip.scope === GLOBAL;
-    openPanel("p:" + tipKey(tip), g ? 200 : hue(tip.scope), g ? globalWho : projectWho(tip.scope), (body) => tipPanel(tip, body));
+    openPanel("p:" + tipKey(tip), g ? 200 : hue(tip.scope), g ? globalWho : projectWho(tip.scope), (body) => tipPanel(tip, body), tipRef(tip));
   }
   async function tipSaved(r) {
     dirty = null;
@@ -1000,7 +1058,7 @@
     c.dataset.key = "p:" + tipKey(tip);
     const [head] = cardHead(tip.title, tip.id, tipChips(tip), tipDate(tip), tipDate(tip) && "saved " + when(tipDate(tip)), [arrow()]);
     c.appendChild(head);
-    opener(head, () => openPanel(c.dataset.key, h, where, (body) => tipPanel(tip, body)));
+    opener(head, () => openPanel(c.dataset.key, h, where, (body) => tipPanel(tip, body), tipRef(tip)));
     return c;
   }
   function tipPanel(tip, body) {
@@ -1097,7 +1155,7 @@
   }
   function openDoc(doc) {
     const g = doc.scope === GLOBAL;
-    openPanel(docKey(doc), g ? 200 : hue(doc.scope), g ? globalWho : projectWho(doc.scope), (body) => docPanel(doc, body));
+    openPanel(docKey(doc), g ? 200 : hue(doc.scope), g ? globalWho : projectWho(doc.scope), (body) => docPanel(doc, body), docRef(doc));
   }
   async function docSaved(r) {
     dirty = null;
@@ -1312,7 +1370,7 @@
   // The sidebar pick: "all", a project or GLOBAL; kept in the URL hash
   // ("#global-tips", "#<project>", none for All) so a reload keeps it.
   function fromHash() {
-    let h = location.hash.slice(1);
+    let h = location.hash.slice(1).split("/")[0];
     try { h = decodeURIComponent(h); } catch (e) { /* a malformed hash */ }
     return !h ? "all" : h === "global-tips" ? GLOBAL : h;
   }
@@ -1321,8 +1379,9 @@
     try { if (v === "all") localStorage.removeItem("baton.proj"); else localStorage.setItem("baton.proj", v); } catch (e) { /* private mode */ }
   }
   function pick(v) {
-    const h = v === "all" ? "" : "#" + (v === GLOBAL ? "global-tips" : enc(v));
-    if (h !== location.hash) history.pushState(null, "", h || location.pathname + location.search);
+    if (!$("#panel").hidden) { if (!leaveEditor()) return; hidePanel(); }
+    const h = v === "all" ? "" : "#" + pickHash(v);
+    if (h !== location.hash) hpush({ d: 0 }, "", h || location.pathname + location.search);
     state.proj = v;
     remember(v);
     render();
@@ -1590,14 +1649,21 @@
   $("#pclose").addEventListener("click", closePanel);
   $("#scrim").addEventListener("click", closePanel);
   $("#navsel").addEventListener("change", (e) => pick(e.target.value));
-  window.addEventListener("popstate", () => { state.proj = fromHash(); remember(state.proj); render(); });
+  window.addEventListener("popstate", () => {
+    if (!leaveEditor()) { history.pushState(cur.s, "", cur.u); return; }
+    state.proj = fromHash();
+    remember(state.proj);
+    render();
+    syncPanel(panelFromHash());
+    cur = { s: history.state, u: location.href };
+  });
   $("#home").addEventListener("click", (e) => { e.preventDefault(); pick("all"); });
   state.proj = fromHash();
   if (!location.hash) {
     let v = null;
     try { v = localStorage.getItem("baton.proj"); } catch (e) { /* private mode */ }
     // A project that is gone falls back to All in render().
-    if (v) { state.proj = v; history.replaceState(null, "", "#" + (v === GLOBAL ? "global-tips" : enc(v))); }
+    if (v) { state.proj = v; hrep(null, "", "#" + (v === GLOBAL ? "global-tips" : enc(v))); }
   }
 
   let searchTimer = 0;
@@ -1659,6 +1725,16 @@
       session = s;
       $("#logout").hidden = !!s.local;
       await load();
+      const ref = panelFromHash();
+      if (ref && data) {
+        hrep({ d: 0 }, "", "#" + pickHash(state.proj));
+        const found = ref.k === "t" ? projectOf(ref.scope) && projectOf(ref.scope).tasks.some((t) => t.task === ref.id)
+          : (ref.k === "p" ? allTips() : allDocs()).some((x) => x.scope === ref.scope && x.id === ref.id);
+        if (found) {
+          hpush({ d: 1 }, "", "#" + pickHash(state.proj) + "/" + ref.k + "/" + enc(ref.scope) + "/" + enc(ref.id));
+          syncPanel(ref);
+        }
+      }
     } catch (e) {
       $("#list").textContent = "";
       $("#list").appendChild(el("div", "error", String(e.message || e)));
