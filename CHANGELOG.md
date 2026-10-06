@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2
+
+- Dashboard: handoff Markdown renders GFM tables (alignment, `\|`
+  escapes), `~~strikethrough~~` and `![images]`. Images allow
+  `data:`, relative and `http(s):` URLs (`javascript:` and other schemes
+  stay text); the CSP `img-src` covers them. No new dependencies: the
+  renderer still builds DOM nodes, never `innerHTML`.
+
 ## 0.2.1
 
 - Dashboard: fenced code blocks are highlighted (go, js/ts, sh, py, json,

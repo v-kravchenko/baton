@@ -256,6 +256,7 @@ code.manual { display: block; margin-top: 8px; padding: 4px 8px; overflow-x: aut
 .md .tok-d { color: var(--warn); }
 .md table { border-collapse: collapse; margin: 4px 0; font-size: 14px; display: block; overflow-x: auto; }
 .md th, .md td { border: 1px solid var(--line); padding: 2px 6px; text-align: left; vertical-align: top; }
+.md img { max-width: 100%; border-radius: 6px; }
 .md a { color: var(--accent); }
 .details .file { color: var(--muted); font-size: 12px; margin: 6px 0 0; overflow-wrap: anywhere; }
 .history { margin: 4px 0; }

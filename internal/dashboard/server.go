@@ -150,7 +150,7 @@ func (s *Server) guard(next http.Handler) http.Handler {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "no-referrer")
 		h.Set("X-Frame-Options", "DENY")
-		h.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+		h.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: http: https:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 		if !s.hostAllowed(r.Host) {
 			http.Error(w, "baton: unknown Host header (add the name to dashboard.public_url)", http.StatusMisdirectedRequest)
 			return

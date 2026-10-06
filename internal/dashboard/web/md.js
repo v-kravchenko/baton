@@ -12,7 +12,7 @@ window.renderMarkdown = (function () {
     return n;
   }
 
-  const inlineRe = /(`+)([\s\S]*?)\1|\*\*((?:[^*]|\*(?!\*))+)\*\*|__([^_]+)__|\*([^*\s][^*]*)\*|\[\[([^\]|]+)(?:\|([^\]]+))?\]\]|\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])|(?<![\w@./-])@([a-z0-9](?:[a-z0-9._-]*[a-z0-9])?)/g;
+  const inlineRe = /(`+)([\s\S]*?)\1|\*\*((?:[^*]|\*(?!\*))+)\*\*|__([^_]+)__|~~([^~]+?)~~|\*([^*\s][^*]*)\*|!\[([^\]]*)\]\(([^)\s]+)\)|\[\[([^\]|]+)(?:\|([^\]]+))?\]\]|\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])|(?<![\w@./-])@([a-z0-9](?:[a-z0-9._-]*[a-z0-9])?)/g;
   let opts = {}; // of the render call in progress (inline reads ref)
 
   // Code highlighting is progressive: blocks render plain (textContent, never
@@ -38,15 +38,20 @@ window.renderMarkdown = (function () {
         inline(b, m[3] || m[4]);
         parent.appendChild(b);
       } else if (m[5]) {
-        const i = el("em");
-        inline(i, m[5]);
-        parent.appendChild(i);
+        const d = el("del");
+        inline(d, m[5]);
+        parent.appendChild(d);
       } else if (m[6]) {
-        const name = m[6].trim(), label = (m[7] || m[6]).trim();
+        const i = el("em");
+        inline(i, m[6]);
+        parent.appendChild(i);
+      } else if (m[7] !== undefined) parent.appendChild(img(m[7], m[8]));
+      else if (m[9]) {
+        const name = m[9].trim(), label = (m[10] || m[9]).trim();
         parent.appendChild((opts.ref && opts.ref(name, label)) || document.createTextNode(label));
-      } else if (m[8]) parent.appendChild(link(m[8], m[9]));
-      else if (m[10]) parent.appendChild(link(m[10], m[10]));
-      else if (m[11]) parent.appendChild((opts.ref && opts.ref(m[11], "@" + m[11])) || document.createTextNode(m[0]));
+      } else if (m[11]) parent.appendChild(link(m[11], m[12]));
+      else if (m[13]) parent.appendChild(link(m[13], m[13]));
+      else if (m[14]) parent.appendChild((opts.ref && opts.ref(m[14], "@" + m[14])) || document.createTextNode(m[0]));
       last = m.index + m[0].length;
     }
     if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
@@ -60,6 +65,38 @@ window.renderMarkdown = (function () {
     a.target = "_blank";
     return a;
   }
+
+  // Images stay in the never-innerHTML model (src/alt set as properties).
+  // data: and relative paths need no CSP change; http(s) is covered by
+  // img-src in server.go. Anything else (e.g. javascript:) falls back to a link.
+  function img(alt, src) {
+    if (/^data:image\//i.test(src) || /^https?:\/\//i.test(src) || !/^[a-zA-Z][\w+.-]*:/.test(src)) {
+      const im = document.createElement("img");
+      im.alt = alt;
+      im.src = src;
+      im.loading = "lazy";
+      return im;
+    }
+    return link(alt || src, src);
+  }
+
+  // GFM table row: one leading/trailing pipe stripped, \| stays literal.
+  function splitRow(line) {
+    let s = line.trim();
+    if (s.startsWith("|")) s = s.slice(1);
+    if (s.endsWith("|")) s = s.slice(0, -1);
+    const cells = [];
+    let cur = "";
+    for (let k = 0; k < s.length; k++) {
+      const c = s[k];
+      if (c === "\\" && k + 1 < s.length && (s[k + 1] === "|" || s[k + 1] === "\\")) cur += s[++k];
+      else if (c === "|") { cells.push(cur.trim()); cur = ""; }
+      else cur += c;
+    }
+    cells.push(cur.trim());
+    return cells;
+  }
+  const isDelimCell = (c) => /^:?-+:?$/.test(c.trim());
 
   function render(src, o) {
     const outer = opts;
@@ -162,6 +199,46 @@ window.renderMarkdown = (function () {
         flush();
         i++;
         continue;
+      }
+      if (line.includes("|") && i + 1 < lines.length) {
+        const head = splitRow(line);
+        const delim = splitRow(lines[i + 1]);
+        if (delim.length === head.length && delim.every(isDelimCell)) {
+          flush();
+          const aligns = delim.map((d) => {
+            d = d.trim();
+            const l = d.startsWith(":"), r = d.endsWith(":");
+            return l && r ? "center" : l ? "left" : r ? "right" : "";
+          });
+          const table = el("table");
+          const thead = el("thead");
+          const htr = el("tr");
+          head.forEach((c, ci) => {
+            const th = el("th");
+            if (aligns[ci]) th.style.textAlign = aligns[ci]; // CSSOM: not blocked by CSP style-src
+            inline(th, c);
+            htr.appendChild(th);
+          });
+          thead.appendChild(htr);
+          table.appendChild(thead);
+          const tb = el("tbody");
+          i += 2;
+          while (i < lines.length && lines[i].trim() !== "" && lines[i].includes("|")) {
+            const cells = splitRow(lines[i]);
+            const tr = el("tr");
+            head.forEach((_, ci) => {
+              const td = el("td");
+              if (aligns[ci]) td.style.textAlign = aligns[ci];
+              inline(td, cells[ci] || "");
+              tr.appendChild(td);
+            });
+            tb.appendChild(tr);
+            i++;
+          }
+          table.appendChild(tb);
+          root.appendChild(table);
+          continue;
+        }
       }
       para.push(line.trim());
       i++;
