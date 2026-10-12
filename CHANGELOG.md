@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.3
+
+- `tips = off` in the config turns tips off: `baton integrate NAME` (and
+  so `baton update`) skips the `/tips` skill or command and the tips lines
+  of the instruction block, removing ones it installed; `baton show` and
+  the dashboard list no tips, and the dashboard has no Tip tab and answers
+  404 to single-tip requests. The `baton tips` commands keep working.
+- `baton integrate NAME --no-tips`, `install.sh --no-tips` and
+  `install.ps1 -NoTips` write `tips = off`.
+
 ## 0.2.2
 
 - Dashboard: handoff Markdown renders GFM tables (alignment, `\|`

@@ -3,6 +3,7 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/v-kravchenko/baton/main/install.sh | sh
 #   curl -fsSL .../install.sh | sh -s -- --integrate claude,opencode
+#   curl -fsSL .../install.sh | sh -s -- --integrate claude --no-tips
 #
 # Environment: BATON_INSTALL_DIR (default ~/.local/bin, $PREFIX/bin on Termux),
 # BATON_VERSION (a tag such as v1.2.3; default latest).
@@ -10,14 +11,19 @@ set -eu
 
 repo="v-kravchenko/baton"
 integrate=""
+notips=""
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--integrate) integrate="$2"; shift 2 ;;
 	--integrate=*) integrate="${1#*=}"; shift ;;
+	--no-tips) notips="--no-tips"; shift ;;
 	-h|--help) sed -n '2,9p' "$0" 2>/dev/null || true; exit 0 ;;
 	*) echo "install.sh: unknown argument $1" >&2; exit 2 ;;
 	esac
 done
+if [ -n "$notips" ] && [ -z "$integrate" ]; then
+	echo "install.sh: --no-tips needs --integrate" >&2; exit 2
+fi
 
 fail() { echo "install.sh: $*" >&2; exit 1; }
 
@@ -90,6 +96,6 @@ esac
 
 if [ -n "$integrate" ]; then
 	for a in $(echo "$integrate" | tr ',' ' '); do
-		"$dir/baton" integrate "$a"
+		"$dir/baton" integrate "$a" $notips
 	done
 fi

@@ -2,11 +2,13 @@
 #
 #   irm https://raw.githubusercontent.com/v-kravchenko/baton/main/install.ps1 | iex
 #   & ([scriptblock]::Create((irm .../install.ps1))) -Integrate claude,opencode
+#   & ([scriptblock]::Create((irm .../install.ps1))) -Integrate claude -NoTips
 #
 # Environment: BATON_INSTALL_DIR (default %LOCALAPPDATA%\Programs\baton),
 # BATON_VERSION (a tag such as v1.2.3; default latest).
-param([string[]]$Integrate = @())
+param([string[]]$Integrate = @(), [switch]$NoTips)
 $ErrorActionPreference = 'Stop'
+if ($NoTips -and -not $Integrate) { throw 'install.ps1: -NoTips needs -Integrate' }
 
 $repo = 'v-kravchenko/baton'
 $arch = switch ($env:PROCESSOR_ARCHITECTURE) {
@@ -55,5 +57,9 @@ if (-not ($userPath -split ';' | Where-Object { $_ -eq $dir })) {
 & (Join-Path $dir 'baton.exe') config init
 
 foreach ($a in ($Integrate -join ',' -split ',' | Where-Object { $_ })) {
-  & (Join-Path $dir 'baton.exe') integrate $a
+  if ($NoTips) {
+    & (Join-Path $dir 'baton.exe') integrate $a --no-tips
+  } else {
+    & (Join-Path $dir 'baton.exe') integrate $a
+  }
 }

@@ -28,7 +28,11 @@ const (
 )
 
 // File maps an embedded file to a path under the agent's config directory.
-type File struct{ Src, Dst string }
+// A Tips file is installed only with tips on.
+type File struct {
+	Src, Dst string
+	Tips     bool
+}
 
 // Integration is one agent.
 type Integration struct {
@@ -36,6 +40,8 @@ type Integration struct {
 	Base  func(home string) string // agent config directory
 	Files []File
 	Block File // instruction block appended to an existing instructions file
+	// NoTipsBlock replaces Block with tips off.
+	NoTipsBlock File
 }
 
 // Registry lists the supported agents.
@@ -49,11 +55,12 @@ var Registry = []Integration{
 			return filepath.Join(home, ".claude")
 		},
 		Files: []File{
-			{"claude/skills/handoff/SKILL.md", "skills/handoff/SKILL.md"},
-			{"claude/skills/pickup/SKILL.md", "skills/pickup/SKILL.md"},
-			{"claude/skills/tips/SKILL.md", "skills/tips/SKILL.md"},
+			{"claude/skills/handoff/SKILL.md", "skills/handoff/SKILL.md", false},
+			{"claude/skills/pickup/SKILL.md", "skills/pickup/SKILL.md", false},
+			{"claude/skills/tips/SKILL.md", "skills/tips/SKILL.md", true},
 		},
-		Block: File{"claude/CLAUDE.md", "CLAUDE.md"},
+		Block:       File{"claude/CLAUDE.md", "CLAUDE.md", false},
+		NoTipsBlock: File{"claude/CLAUDE-notips.md", "CLAUDE.md", false},
 	},
 	{
 		Name: "opencode",
@@ -64,11 +71,12 @@ var Registry = []Integration{
 			return filepath.Join(home, ".config", "opencode")
 		},
 		Files: []File{
-			{"opencode/commands/handoff.md", "commands/handoff.md"},
-			{"opencode/commands/pickup.md", "commands/pickup.md"},
-			{"opencode/commands/tips.md", "commands/tips.md"},
+			{"opencode/commands/handoff.md", "commands/handoff.md", false},
+			{"opencode/commands/pickup.md", "commands/pickup.md", false},
+			{"opencode/commands/tips.md", "commands/tips.md", true},
 		},
-		Block: File{"opencode/AGENTS.md", "AGENTS.md"},
+		Block:       File{"opencode/AGENTS.md", "AGENTS.md", false},
+		NoTipsBlock: File{"opencode/AGENTS-notips.md", "AGENTS.md", false},
 	},
 }
 
@@ -106,16 +114,26 @@ func (in Integration) Installed(home string) bool {
 }
 
 // Install writes the files and the instruction block. Existing files not
-// written by baton are left alone unless force is set. It returns the
-// paths written.
-func (in Integration) Install(home string, force bool) ([]string, error) {
+// written by baton are left alone unless force is set. With tips off the
+// Tips files are removed (if baton wrote them) and NoTipsBlock is written.
+// It returns the paths written and removed.
+func (in Integration) Install(home string, force, tips bool) (written, removed []string, err error) {
 	base := in.Base(home)
-	var written []string
 	var errs []error
 	for _, f := range in.Files {
+		if f.Tips && !tips {
+			ok, err := removeManaged(base, f.Dst)
+			if err != nil {
+				return written, removed, err
+			}
+			if ok {
+				removed = append(removed, filepath.Join(base, f.Dst))
+			}
+			continue
+		}
 		data, err := files.ReadFile(f.Src)
 		if err != nil {
-			return written, err
+			return written, removed, err
 		}
 		dst := filepath.Join(base, f.Dst)
 		if cur, err := os.ReadFile(dst); err == nil && !strings.Contains(string(cur), Marker) && !force {
@@ -123,20 +141,24 @@ func (in Integration) Install(home string, force bool) ([]string, error) {
 			continue
 		}
 		if err := fsutil.WriteFileAtomic(dst, data, 0o644); err != nil {
-			return written, err
+			return written, removed, err
 		}
 		written = append(written, dst)
 	}
-	block, err := files.ReadFile(in.Block.Src)
+	src := in.Block
+	if !tips {
+		src = in.NoTipsBlock
+	}
+	block, err := files.ReadFile(src.Src)
 	if err != nil {
-		return written, err
+		return written, removed, err
 	}
 	dst := filepath.Join(base, in.Block.Dst)
 	if err := writeBlock(dst, string(block)); err != nil {
-		return written, err
+		return written, removed, err
 	}
 	written = append(written, dst)
-	return written, errors.Join(errs...)
+	return written, removed, errors.Join(errs...)
 }
 
 // Uninstall removes managed files and the instruction block.
@@ -144,18 +166,12 @@ func (in Integration) Uninstall(home string) ([]string, error) {
 	base := in.Base(home)
 	var removed []string
 	for _, f := range in.Files {
-		dst := filepath.Join(base, f.Dst)
-		data, err := os.ReadFile(dst)
-		if err != nil || !strings.Contains(string(data), Marker) {
-			continue
-		}
-		if err := os.Remove(dst); err != nil {
+		ok, err := removeManaged(base, f.Dst)
+		if err != nil {
 			return removed, err
 		}
-		removed = append(removed, dst)
-		// Drop now-empty skill directories.
-		if dir := filepath.Dir(dst); dir != base {
-			os.Remove(dir)
+		if ok {
+			removed = append(removed, filepath.Join(base, f.Dst))
 		}
 	}
 	dst := filepath.Join(base, in.Block.Dst)
@@ -167,6 +183,23 @@ func (in Integration) Uninstall(home string) ([]string, error) {
 		removed = append(removed, dst+" (baton block)")
 	}
 	return removed, nil
+}
+
+// removeManaged deletes base/dst if baton wrote it, then its directory if
+// that is now empty (a skill directory). It reports whether it deleted.
+func removeManaged(base, dst string) (bool, error) {
+	p := filepath.Join(base, dst)
+	data, err := os.ReadFile(p)
+	if err != nil || !strings.Contains(string(data), Marker) {
+		return false, nil
+	}
+	if err := os.Remove(p); err != nil {
+		return false, err
+	}
+	if dir := filepath.Dir(p); dir != base {
+		os.Remove(dir)
+	}
+	return true, nil
 }
 
 func writeBlock(path, content string) error {

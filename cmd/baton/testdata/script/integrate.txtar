@@ -23,6 +23,23 @@ exists $WORK/home/.config/opencode/commands/tips.md
 grep '^agent.opencode = ' $WORK/cfg/config
 grep 'baton tips search' $WORK/home/.config/opencode/AGENTS.md
 
+# --no-tips turns tips off in the config and drops them from the integration;
+# a plain integrate (as baton update runs it) keeps them off.
+exec baton integrate opencode --no-tips
+stdout 'set tips = off'
+stdout 'removed .*commands.tips.md'
+stdout '/handoff and /pickup are available'
+grep '^tips = off$' $WORK/cfg/config
+! exists $WORK/home/.config/opencode/commands/tips.md
+! grep 'tips' $WORK/home/.config/opencode/AGENTS.md
+exec baton integrate opencode
+! stdout 'set tips'
+! exists $WORK/home/.config/opencode/commands/tips.md
+cp $WORK/tipson $WORK/cfg/config
+exec baton integrate opencode
+exists $WORK/home/.config/opencode/commands/tips.md
+grep 'baton tips search' $WORK/home/.config/opencode/AGENTS.md
+
 # A foreign command file is kept.
 exec baton integrate opencode --uninstall
 stdout 'removed agent.opencode'
@@ -52,6 +69,9 @@ grep '^agent.claude = my-claude' $WORK/cfg/config
 ! exists $WORK/home/.claude/CLAUDE.md
 ! exec baton integrate vim
 stderr 'unknown integration'
+-- tipson --
+tips = on
+agent.claude = claude "/pickup {task}"
 -- withdefault --
 agent.default = claude
 agent.claude = claude "/pickup {task}"

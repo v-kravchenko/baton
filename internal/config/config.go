@@ -91,8 +91,11 @@ type Config struct {
 	Auth           bool
 	AuthIdle       time.Duration
 	AuthMax        time.Duration
-	DefaultAgent   string
-	Agents         []Agent // in config order
+	// Tips off drops the tips skill and instructions from integrations and
+	// the tips list from baton show.
+	Tips         bool
+	DefaultAgent string
+	Agents       []Agent // in config order
 	// BuiltinAgents: no agent.<name> line, Agents holds DefaultAgents.
 	BuiltinAgents bool
 	Warnings      []string
@@ -114,6 +117,7 @@ func Defaults(home string) Config {
 		Port:           8765,
 		AuthIdle:       7 * 24 * time.Hour,
 		AuthMax:        30 * 24 * time.Hour,
+		Tips:           true,
 	}
 }
 
@@ -287,14 +291,17 @@ func (c *Config) apply(e Entry, home string) error {
 	case "dashboard.public_url":
 		c.PublicURL = strings.TrimRight(v, "/")
 	case "dashboard.auth":
-		switch strings.ToLower(v) {
-		case "on", "true", "yes", "1":
-			c.Auth = true
-		case "off", "false", "no", "0", "":
-			c.Auth = false
-		default:
-			return fmt.Errorf("dashboard.auth: want on|off, got %q", v)
+		on, err := parseOnOff(e.Key, v, false)
+		if err != nil {
+			return err
 		}
+		c.Auth = on
+	case "tips":
+		on, err := parseOnOff(e.Key, v, true)
+		if err != nil {
+			return err
+		}
+		c.Tips = on
 	case "dashboard.auth.idle", "dashboard.auth.max":
 		dur, err := ParseDuration(v)
 		if err != nil {
@@ -362,6 +369,19 @@ func ParseDuration(s string) (time.Duration, error) {
 	return total + d, nil
 }
 
+// parseOnOff reads an on|off value; empty means def.
+func parseOnOff(key, v string, def bool) (bool, error) {
+	switch strings.ToLower(v) {
+	case "":
+		return def, nil
+	case "on", "true", "yes", "1":
+		return true, nil
+	case "off", "false", "no", "0":
+		return false, nil
+	}
+	return false, fmt.Errorf("%s: want on|off, got %q", key, v)
+}
+
 func unquote(s string) string {
 	if len(s) >= 2 && (s[0] == '"' || s[0] == '\'') && s[len(s)-1] == s[0] {
 		return s[1 : len(s)-1]
@@ -405,6 +425,10 @@ const DefaultFile = `# baton config: flat "key = value"; # starts a comment.
 
 # root = ~/.local/share/baton
 # keep = 10
+
+# Tips: off drops the /tips skill and the tips instructions from integrations
+# ("baton integrate NAME" applies it) and the tips list from "baton show".
+# tips = on
 
 # Obsidian: keep the handoffs in a vault folder instead of root (set only
 # one of root and obsidian.vault); root becomes <vault>/<obsidian.folder>.

@@ -33,11 +33,15 @@ is no branch/commit/staleness data).
 curl -fsSL https://raw.githubusercontent.com/v-kravchenko/baton/main/install.sh | sh
 # with agent integrations
 curl -fsSL https://raw.githubusercontent.com/v-kravchenko/baton/main/install.sh | sh -s -- --integrate claude,opencode
+# without tips (see Tips)
+curl -fsSL https://raw.githubusercontent.com/v-kravchenko/baton/main/install.sh | sh -s -- --integrate claude --no-tips
 ```
 
 ```powershell
 # Windows
 irm https://raw.githubusercontent.com/v-kravchenko/baton/main/install.ps1 | iex
+# with integrations, without tips
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/v-kravchenko/baton/main/install.ps1))) -Integrate claude -NoTips
 ```
 
 Or `go install github.com/v-kravchenko/baton/cmd/baton@latest` (Go 1.22+).
@@ -149,6 +153,15 @@ matching the task name, title and Context (or older Gotchas) section (titles
 only), and the installed instruction block plus the `/tips` skill tell the
 agent to run `baton tips search` before debugging.
 
+`tips = off` in the config turns both off: `baton show` lists no tips and
+`baton integrate NAME` (also run by `baton update`) installs neither the
+`/tips` skill nor the tips lines of the instruction block, removing ones it
+installed before. `baton integrate NAME --no-tips` (`install.sh --no-tips`,
+`install.ps1 -NoTips`) writes `tips = off`; to turn tips back on set
+`tips = on` and run `baton integrate NAME` again. The dashboard shows no
+tips and has no Tip tab under `+` (it rereads the config, no restart
+needed). The `baton tips` commands keep working.
+
 ### Docs
 
 Docs hold longer, stable text that a handoff should not rewrite every
@@ -188,7 +201,7 @@ baton docs [list] [@task] | show @task ID | new @task [--id ID] [--title T] |
 baton dashboard [--port N] [--host H] [--no-open] [--background|--stop] [--json]
 baton service install|status|restart|uninstall [--dry-run]
 baton auth status|on|off|password|logout-all
-baton integrate claude|opencode [--uninstall] [--force]
+baton integrate claude|opencode [--uninstall] [--force] [--no-tips]
 baton config init|path
 baton template
 baton update [--check] [--force]
@@ -248,6 +261,7 @@ Overrides: `BATON_CONFIG_DIR` (directory with `config` and `paths`),
 ```text
 root = ~/Sync/handoffs
 keep = 10
+tips = on
 obsidian.vault =
 obsidian.folder = baton
 dashboard.host = 127.0.0.1

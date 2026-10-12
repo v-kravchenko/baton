@@ -28,9 +28,19 @@ func cmdIntegrate(app *App, a *args) error {
 		}
 		return removeAgent(app, in.Name)
 	}
-	written, err := in.Install(app.Dirs.Home, a.bools["force"])
+	tips := app.Cfg.Tips
+	if a.bools["no-tips"] {
+		if err := tipsOff(app); err != nil {
+			return err
+		}
+		tips = false
+	}
+	written, removed, err := in.Install(app.Dirs.Home, a.bools["force"], tips)
 	for _, w := range written {
 		app.printf("wrote %s\n", w)
+	}
+	for _, r := range removed {
+		app.printf("removed %s\n", r)
 	}
 	if err != nil {
 		return err
@@ -41,12 +51,33 @@ func cmdIntegrate(app *App, a *args) error {
 	if _, lerr := exec.LookPath("baton"); lerr != nil {
 		app.warnf("baton is not on PATH; the %s skills call `baton` and will fail until it is", in.Name)
 	}
+	cmds := "/handoff, /pickup and /tips are"
+	if !tips {
+		cmds = "/handoff and /pickup are"
+	}
 	switch in.Name {
 	case "claude":
-		app.printf("Claude Code: /handoff, /pickup and /tips are available in new sessions\n")
+		app.printf("Claude Code: %s available in new sessions\n", cmds)
 	case "opencode":
-		app.printf("opencode: /handoff, /pickup and /tips are available in new sessions\n")
+		app.printf("opencode: %s available in new sessions\n", cmds)
 	}
+	return nil
+}
+
+// tipsOff writes tips = off to the config, so baton update keeps tips out
+// of the integrations it refreshes.
+func tipsOff(app *App) error {
+	file := app.Dirs.ConfigFile()
+	if _, err := config.EnsureFile(file); err != nil {
+		return err
+	}
+	if !app.Cfg.Tips {
+		return nil
+	}
+	if err := config.SetKey(file, "tips", "off"); err != nil {
+		return err
+	}
+	app.printf("set tips = off in %s\n", file)
 	return nil
 }
 

@@ -50,6 +50,16 @@ exec baton show @locks
 stdout 'tips that may apply'
 stdout 'flock-hangs-on-nfs: Flock hangs on NFS'
 
+# tips = off hides them from show; the tips commands still work.
+cp $WORK/tipsoff $WORK/cfg/config
+exec baton show @locks
+! stdout 'tips that may apply'
+exec baton tips search flock
+stdout 'flock-hangs-on-nfs'
+rm $WORK/cfg/config
+
+-- tipsoff --
+tips = off
 -- tip1.md --
 ---
 title: Flock hangs on NFS

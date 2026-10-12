@@ -102,7 +102,7 @@ func (s *Server) apiProjects(w http.ResponseWriter, r *http.Request) (any, error
 	for _, p := range s.Store.Projects() {
 		active, _ := s.Store.Tasks(p)
 		archived, _ := s.Store.Archived(p)
-		ts, _ := s.Tips.List(p)
+		ts, _ := s.tipList(p)
 		pj := proj{Key: p, Dir: paths[p], Tasks: []taskJSON{}, Archived: len(archived), Tips: len(ts), Conflicts: len(s.Store.Conflicts(p))}
 		if pj.Dir != "" {
 			pj.Repo = gitinfo.RemoteURL(pj.Dir)
@@ -121,8 +121,8 @@ func (s *Server) apiProjects(w http.ResponseWriter, r *http.Request) (any, error
 		out = append(out, pj)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Updated.After(out[j].Updated) })
-	global, _ := s.Tips.List(store.Global)
-	return map[string]any{"projects": out, "global_tips": len(global), "root": s.cfg().Root, "home": s.Dirs.Home}, nil
+	global, _ := s.tipList(store.Global)
+	return map[string]any{"projects": out, "global_tips": len(global), "tips": s.cfg().Tips, "root": s.cfg().Root, "home": s.Dirs.Home}, nil
 }
 
 func (s *Server) apiProject(w http.ResponseWriter, r *http.Request) (any, error) {
@@ -138,7 +138,7 @@ func (s *Server) apiProject(w http.ResponseWriter, r *http.Request) (any, error)
 	if err != nil {
 		return nil, err
 	}
-	ts, err := s.Tips.List(p)
+	ts, err := s.tipList(p)
 	if err != nil {
 		return nil, err
 	}
@@ -497,8 +497,26 @@ func (s *Server) tipScopes(r *http.Request) []string {
 	return s.Tips.Scopes()
 }
 
+// tipList lists the tips of scopes; none with tips = off.
+func (s *Server) tipList(scopes ...string) ([]*tips.Tip, error) {
+	if !s.cfg().Tips {
+		return nil, nil
+	}
+	return s.Tips.List(scopes...)
+}
+
+// tipsOn answers 404 for a single-tip request with tips = off.
+func (s *Server) tipsOn(h func(http.ResponseWriter, *http.Request) (any, error)) func(http.ResponseWriter, *http.Request) (any, error) {
+	return func(w http.ResponseWriter, r *http.Request) (any, error) {
+		if !s.cfg().Tips {
+			return nil, errStatus(http.StatusNotFound, "tips are off (tips = off in the config)")
+		}
+		return h(w, r)
+	}
+}
+
 func (s *Server) apiTips(w http.ResponseWriter, r *http.Request) (any, error) {
-	all, err := s.Tips.List(s.tipScopes(r)...)
+	all, err := s.tipList(s.tipScopes(r)...)
 	if err != nil {
 		return nil, err
 	}
@@ -709,7 +727,7 @@ func (s *Server) apiSearch(w http.ResponseWriter, r *http.Request) (any, error) 
 	if dj != nil {
 		out["docs"] = dj
 	}
-	allTips, _ := s.Tips.List(s.Tips.Scopes()...)
+	allTips, _ := s.tipList(s.Tips.Scopes()...)
 	var tj []tipJSON
 	for _, res := range tips.Search(allTips, q, tips.Options{All: true, Limit: 30}) {
 		tj = append(tj, tipOf(res.Tip, false))

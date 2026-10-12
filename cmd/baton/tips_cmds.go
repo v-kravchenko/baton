@@ -24,6 +24,9 @@ func (app *App) tipScopes() []string {
 // tipsForHandoff suggests tips matching the task name, title and Context
 // (Gotchas in handoffs written before 0.1.8).
 func (app *App) tipsForHandoff(p string, h *store.Handoff) []tipRef {
+	if !app.Cfg.Tips {
+		return nil
+	}
 	all, err := app.tipStore().List(p, store.Global)
 	if err != nil || len(all) == 0 {
 		return nil

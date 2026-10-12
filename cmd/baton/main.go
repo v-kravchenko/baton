@@ -53,9 +53,10 @@ func init() {
 		"pickup": {cmdPickup, map[string]bool{"agent": true, "print": false}, "baton pickup [PROJECT] [@task] [PROMPT] [--agent X] [--print]"},
 		"dashboard": {cmdDashboard, map[string]bool{"port": true, "host": true, "no-open": false, "background": false, "stop": false},
 			"baton dashboard [--port N] [--host H] [--no-open] [--background|--stop] [--json]"},
-		"service":   {cmdService, map[string]bool{"dry-run": false}, "baton service install|status|restart|uninstall [--dry-run]"},
-		"auth":      {cmdAuth, nil, "baton auth status|on|off|password|logout-all"},
-		"integrate": {cmdIntegrate, map[string]bool{"uninstall": false, "force": false}, "baton integrate claude|opencode [--uninstall] [--force]"},
+		"service": {cmdService, map[string]bool{"dry-run": false}, "baton service install|status|restart|uninstall [--dry-run]"},
+		"auth":    {cmdAuth, nil, "baton auth status|on|off|password|logout-all"},
+		"integrate": {cmdIntegrate, map[string]bool{"uninstall": false, "force": false, "no-tips": false},
+			"baton integrate claude|opencode [--uninstall] [--force] [--no-tips]"},
 	}
 }
 
@@ -74,7 +75,7 @@ usage:
   baton dashboard [--port N] [--host H] [--no-open] [--background|--stop]
   baton service install|status|restart|uninstall [--dry-run]
   baton auth status|on|off|password|logout-all
-  baton integrate claude|opencode [--uninstall]
+  baton integrate claude|opencode [--uninstall] [--no-tips]
   baton config init|path
   baton template
   baton update [--check]

@@ -5,7 +5,7 @@
   // open: key of the item in the panel; proj: the sidebar pick.
   const state = { q: "", archOpen: [], tab: {}, open: null, globalOpen: false, proj: "all" };
   let session = null;
-  // data: { root, home, projects: [{ key, dir, updated, conflicts, tasks, tips, docs }], global: [tips] }  (docs: all docs of the project, each with its task)
+  // data: { root, home, tips (off: tips = off in the config), projects: [{ key, dir, updated, conflicts, tasks, tips, docs }], global: [tips] }  (docs: all docs of the project, each with its task)
   let data = null;
   let hits = new Map(); // full-text search: task key -> snippet
   let tipHits = new Set(); // full-text search: tip key
@@ -944,7 +944,7 @@
       })).catch(failed(box));
       const startTask = () => (parent ? startEditor() : template().then(() => quickForm(box, project, startEditor)).catch(failed(box)));
       const startTip = () => template().then(() => tipForm(box, { scope: project })).catch(failed(box));
-      if (!parent) {
+      if (!parent && data.tips) {
         const tabs = el("div", "seg tabs newkind");
         tabs.setAttribute("role", "tablist");
         [["Task", startTask], ["Tip", startTip]].forEach(([label, start], i) => {
@@ -1592,6 +1592,7 @@
       const next = {
         root: list.root,
         home: list.home || "",
+        tips: list.tips !== false,
         projects: list.projects.map((p, i) => {
           const d = details[i];
           const tasks = sortTasks(d.tasks.concat(d.archived)).map((t) => Object.assign({ project: p.key }, t));

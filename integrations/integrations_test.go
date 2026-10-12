@@ -22,8 +22,13 @@ func TestEmbeddedFilesExistAndAreMarked(t *testing.T) {
 				t.Errorf("%s references skill-dir scripts", f.Src)
 			}
 		}
-		if _, err := Read(in.Block.Src); err != nil {
-			t.Errorf("%s: %v", in.Block.Src, err)
+		for _, b := range []File{in.Block, in.NoTipsBlock} {
+			if _, err := Read(b.Src); err != nil {
+				t.Errorf("%s: %v", b.Src, err)
+			}
+		}
+		if data, _ := Read(in.NoTipsBlock.Src); strings.Contains(string(data), "tips") {
+			t.Errorf("%s mentions tips", in.NoTipsBlock.Src)
 		}
 	}
 	// Every embedded file is registered.
@@ -33,7 +38,7 @@ func TestEmbeddedFilesExistAndAreMarked(t *testing.T) {
 		}
 		found := false
 		for _, in := range Registry {
-			found = found || in.Block.Src == p
+			found = found || in.Block.Src == p || in.NoTipsBlock.Src == p
 			for _, f := range in.Files {
 				found = found || f.Src == p
 			}
@@ -56,7 +61,7 @@ func TestInstallUninstall(t *testing.T) {
 	foreign := filepath.Join(base, "skills", "tips", "SKILL.md")
 	os.WriteFile(foreign, []byte("someone else's skill"), 0o644)
 
-	written, err := in.Install(home, false)
+	written, _, err := in.Install(home, false, true)
 	if err == nil || !strings.Contains(err.Error(), "--force") {
 		t.Errorf("foreign file overwritten: %v", err)
 	}
@@ -70,7 +75,7 @@ func TestInstallUninstall(t *testing.T) {
 		t.Error("not installed")
 	}
 	// Reinstall replaces the block instead of appending a second one.
-	in.Install(home, true)
+	in.Install(home, true, true)
 	md, _ := os.ReadFile(filepath.Join(base, "CLAUDE.md"))
 	if strings.Count(string(md), blockBegin) != 1 || !strings.HasPrefix(string(md), "# Mine\nkeep me\n\n") {
 		t.Errorf("CLAUDE.md = %q", md)
@@ -95,7 +100,7 @@ func TestOpencodeXDG(t *testing.T) {
 	x := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", x)
 	in, _ := Get("opencode")
-	if _, err := in.Install("/nonexistent-home", false); err != nil {
+	if _, _, err := in.Install("/nonexistent-home", false, true); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(x, "opencode", "commands", "pickup.md")); err != nil {
@@ -103,5 +108,39 @@ func TestOpencodeXDG(t *testing.T) {
 	}
 	if _, err := Get("vim"); err == nil {
 		t.Error("unknown integration accepted")
+	}
+}
+
+func TestInstallNoTips(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	in, _ := Get("claude")
+	base := filepath.Join(home, ".claude")
+	skill := filepath.Join(base, "skills", "tips", "SKILL.md")
+	if _, _, err := in.Install(home, false, true); err != nil {
+		t.Fatal(err)
+	}
+	written, removed, err := in.Install(home, false, false)
+	if err != nil || len(written) != 3 || len(removed) != 1 || removed[0] != skill {
+		t.Errorf("written = %v, removed = %v, %v", written, removed, err)
+	}
+	if _, err := os.Stat(filepath.Dir(skill)); err == nil {
+		t.Error("tips skill left behind")
+	}
+	md, _ := os.ReadFile(filepath.Join(base, "CLAUDE.md"))
+	if strings.Contains(string(md), "tips") || strings.Count(string(md), blockBegin) != 1 {
+		t.Errorf("CLAUDE.md = %q", md)
+	}
+	// A foreign tips skill is not removed.
+	os.MkdirAll(filepath.Dir(skill), 0o755)
+	os.WriteFile(skill, []byte("mine"), 0o644)
+	in.Install(home, false, false)
+	if data, _ := os.ReadFile(skill); string(data) != "mine" {
+		t.Error("foreign tips skill removed")
+	}
+	os.Remove(skill)
+	in.Install(home, false, true)
+	if _, err := os.Stat(skill); err != nil {
+		t.Error("tips skill not restored")
 	}
 }

@@ -28,13 +28,13 @@ func TestParseEntriesCRLFAndComments(t *testing.T) {
 func TestLoad(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("BATON_ROOT", "")
-	cfg := "root = ~/h\nkeep = 3\ndashboard.auth = on\ndashboard.auth.idle = 1d12h\nagent.default = b\nagent.a = a {task}\nagent.b = b\nfoo = 1\n"
+	cfg := "root = ~/h\nkeep = 3\ndashboard.auth = on\ndashboard.auth.idle = 1d12h\ntips = off\nagent.default = b\nagent.a = a {task}\nagent.b = b\nfoo = 1\n"
 	os.WriteFile(filepath.Join(dir, "config"), []byte(cfg), 0o644)
 	c, err := Load(Dirs{Home: "/home/u", Config: dir})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Root != filepath.Join("/home/u", "h") || c.Keep != 3 || !c.Auth || c.AuthIdle != 36*time.Hour {
+	if c.Root != filepath.Join("/home/u", "h") || c.Keep != 3 || !c.Auth || c.AuthIdle != 36*time.Hour || c.Tips {
 		t.Errorf("config = %+v", c)
 	}
 	if len(c.Agents) != 2 || c.Agents[0].Name != "a" || c.Agents[1].Name != "b" || c.DefaultAgent != "b" || c.BuiltinAgents {
@@ -57,7 +57,7 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Root != "/r" || c.Keep != 10 || c.Port != 8765 || c.DefaultAgent != "claude" || len(c.Agents) != 2 || !c.BuiltinAgents {
+	if c.Root != "/r" || c.Keep != 10 || c.Port != 8765 || c.DefaultAgent != "claude" || len(c.Agents) != 2 || !c.BuiltinAgents || !c.Tips {
 		t.Errorf("defaults = %+v", c)
 	}
 }

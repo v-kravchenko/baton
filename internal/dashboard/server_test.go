@@ -422,6 +422,33 @@ func TestTipWriteAPI(t *testing.T) {
 	}
 }
 
+func TestTipsOff(t *testing.T) {
+	e := newEnv(t, false)
+	if !strings.Contains(e.do("GET", "/api/projects", "", local).Body.String(), `"tips":true`) {
+		t.Fatal("tips not on by default")
+	}
+	// The config is reloaded, so turning tips off needs no restart.
+	cfg := e.srv.Cfg
+	cfg.Tips = false
+	e.srv.LoadConfig = func() (config.Config, error) { return cfg, nil }
+	e.srv.checked = time.Time{}
+	if b := e.do("GET", "/api/projects", "", local).Body.String(); !strings.Contains(b, `"tips":false`) || !strings.Contains(b, `"global_tips":0`) || strings.Contains(b, `"tips":1`) {
+		t.Errorf("projects: %s", b)
+	}
+	for _, path := range []string{"/api/projects/api", "/api/tips", "/api/search?q=flock"} {
+		if b := e.do("GET", path, "", local).Body.String(); strings.Contains(b, "flock") {
+			t.Errorf("%s lists tips: %s", path, b)
+		}
+	}
+	csrf := decode(t, e.do("GET", "/api/session", "", local))["csrf"].(string)
+	if w := e.do("POST", "/api/tips", `{"scope":"api","title":"Mine","body":"Tip: t\n"}`, local, header(csrfHeader, csrf)); w.Code != 404 {
+		t.Errorf("new tip with tips off: %d", w.Code)
+	}
+	if w := e.do("GET", "/api/tips/api/flock-on-nfs", "", local); w.Code != 404 {
+		t.Errorf("get tip with tips off: %d", w.Code)
+	}
+}
+
 func TestCheckAPI(t *testing.T) {
 	e := newEnv(t, false)
 	csrf := decode(t, e.do("GET", "/api/session", "", local))["csrf"].(string)
