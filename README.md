@@ -155,8 +155,8 @@ agent to run `baton tips search` before debugging.
 
 `tips = off` in the config turns both off: `baton show` lists no tips and
 `baton integrate NAME` (also run by `baton update`) installs neither the
-`/tips` skill nor the tips lines of the instruction block, removing ones it
-installed before. `baton integrate NAME --no-tips` (`install.sh --no-tips`,
+`/tips` skill nor the tips parts of the other skills and the instruction
+block, removing ones it installed before. `baton integrate NAME --no-tips` (`install.sh --no-tips`,
 `install.ps1 -NoTips`) writes `tips = off`; to turn tips back on set
 `tips = on` and run `baton integrate NAME` again. The dashboard shows no
 tips and has no Tip tab under `+` (it rereads the config, no restart
@@ -164,16 +164,19 @@ needed). The `baton tips` commands keep working.
 
 ### Docs
 
-Docs hold longer, stable text that a handoff should not rewrite every
-session: a plan or rules the user gave, an agreement, a spec. A doc is
+Docs hold text that a handoff should not rewrite every session and that
+lives nowhere else: a plan or rules the user gave, an agreement, a spec, and
+what the session produced outside the repo (a review, an analysis, text files
+in `/tmp`). A doc is
 attached to one task (`docs/<task>/<id>.md`): it follows the task through
 `done`, `restore` and `rename`, and `baton show` lists the docs of the task
-(titles only), so the handoff needs no link; `[[id]]` in it still works as a
+(titles only, `(agent)` after the agent's), so the handoff needs no link; `[[id]]` in it still works as a
 link in the dashboard (`[[other-task/id]]` for a doc of another task). A fork
-does not copy docs. The installed skills tell agents to change a doc only with
-the user's consent.
+does not copy docs. `origin` tells who wrote a doc: `user` (the user's
+text) or `agent`. The installed skills let agents edit and delete their own
+docs and change any other doc only with the user's consent.
 
-Doc frontmatter: `title`, `created`, `updated`. The body is free Markdown; `docs new`
+Doc frontmatter: `title`, `origin` (optional), `created`, `updated`. The body is free Markdown; `docs new`
 and `docs edit` warn above 8000 characters. The task must exist; the id is a
 slug of the title (or `--id`), unique within the task, and never a task or tip
 name of the project, since `[[name]]` finds a task first. Docs have no history
@@ -196,7 +199,7 @@ baton pickup [PROJECT] [@task] [PROMPT] [--agent X] [--print]
 baton path set KEY DIR | list | prune
 baton tips search [--error] [--all] WORDS | show ID | new [--global] | verified ID |
            refuted ID WHY | supersede OLD NEW | move ID global|project | list [--all]
-baton docs [list] [@task] | show @task ID | new @task [--id ID] [--title T] |
+baton docs [list] [@task] | show @task ID | new @task [--id ID] [--title T] [--origin user|agent] |
            edit @task ID [--title T] [--expect VER] | delete @task ID
 baton dashboard [--port N] [--host H] [--no-open] [--background|--stop] [--json]
 baton service install|status|restart|uninstall [--dry-run]
@@ -218,7 +221,7 @@ baton version
   task does not exist), `ARCHIVED` (the task is done), `NO HANDOFF` (nothing
   active).
 - `docs new` and `docs edit` read the body on stdin; it may start with
-  frontmatter (`title`, `status`), flags win.
+  frontmatter (`title`, `origin`), flags win.
 - `tips new` reads the tip on stdin; frontmatter fields may come from stdin or
   from `--title --when --keywords --cites --origin --env`.
 
@@ -389,7 +392,11 @@ and appends an instruction block to `~/.claude/CLAUDE.md`
 (`CLAUDE_CONFIG_DIR` is honored). `baton integrate opencode` writes
 `~/.config/opencode/commands/{handoff,pickup,tips}.md` and a block in
 `~/.config/opencode/AGENTS.md`. Skills contain only Markdown and call `baton`
-from `PATH`; Claude Code skills need nothing but `Bash(baton *)`. Files not
+from `PATH`; Claude Code skills need nothing but `Bash(baton *)`. The
+handoff skill also tells the agent to save as docs what would otherwise be
+lost: reviews, analyses, text files in `/tmp`. Tips parts of the embedded
+files sit between `<!-- tips -->` and `<!-- /tips -->` and are cut with tips
+off. Files not
 written by baton are never overwritten without `--force`; `--uninstall`
 removes only baton's files and block. `baton update` refreshes installed
 integrations.

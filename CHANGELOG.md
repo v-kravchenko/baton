@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.4
+
+- Skills rewritten: shorter, with a table of the `baton` commands an agent
+  uses (the user-only ones are named). `/handoff` now saves as docs what
+  would otherwise be lost: reviews, analyses, research, text files in
+  `/tmp`, in full and split by section when long.
+- With `tips = off` the `/handoff` and `/pickup` skills no longer mention
+  tips: tips parts of the embedded files sit between `<!-- tips -->`
+  markers and are cut on install.
+- Docs: `baton docs new --origin user|agent`; `docs show` prints the
+  origin and `baton show` marks agent docs `(agent)`. Agents edit their own
+  docs freely, others only with the user's consent; `/pickup` reads the
+  user's docs always and agent docs when the next step needs them.
+
 ## 0.2.3
 
 - `tips = off` in the config turns tips off: `baton integrate NAME` (and

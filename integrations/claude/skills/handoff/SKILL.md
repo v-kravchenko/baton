@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Save this session's state as a baton handoff for a named task so a later session on any machine or agent can continue it. Use on /handoff, when the user asks to save or hand off the session, or before a long session ends. Also "/handoff @task done" (finish a task) and "/handoff fork NEW" (split off a new task).
+description: Save this session's state as a baton handoff for a named task, with the task's docs, so a later session on any machine or agent can continue it. Use on /handoff, when the user asks to save or hand off the session, or before a long session ends. Also "/handoff @task done" (finish a task) and "/handoff fork NEW" (split off a new task).
 argument-hint: "[@task] [done|fork NEW] [notes]"
 allowed-tools: Bash(baton *)
 ---
@@ -11,51 +11,68 @@ Arguments: $ARGUMENTS
 Current tasks of this project:
 !`baton tasks`
 
-All state lives behind the `baton` CLI. Run it from the project root as is,
-without `cd`. Never write files under the baton root yourself: pass bodies to
-`baton save`, `baton docs new|edit` and `baton tips new` on stdin.
+Run `baton` from the project root as is, without `cd`. Never write files
+under the baton root yourself: pass bodies on stdin.
+
+## Commands
+
+| Command | For |
+|---|---|
+| `baton show @task` | the current handoff, its docs<!-- tips --> and tips<!-- /tips --> |
+| `baton template` | the handoff sections |
+| `baton save @task --title T` | save the handoff (body on stdin) |
+| `baton docs list\|show @task [ID]` | the task's docs |
+| `baton docs new @task --title T --origin user\|agent` | new doc (body on stdin) |
+| `baton docs edit\|delete @task ID` | replace (body on stdin) or remove a doc |
+| `baton history @task [N]` | earlier handoffs (1 = newest) |
+| `baton done\|restore @task`, `baton rename OLD NEW` | archive, reopen, rename a task |
+<!-- tips -->
+| `baton tips search\|new\|supersede\|verified` | tips (step 5) |
+<!-- /tips -->
+
+`dashboard`, `service`, `auth`, `update`, `integrate`, `config` are for the
+user: run them only when asked.
 
 ## 1. Pick the task
 
-- If the arguments name `@task`, use it.
-- Otherwise use the task this session worked on (it was picked up or is listed
-  above). With no tasks yet, choose a short kebab-case name for the work, such
-  as `@api-refactor`. If several tasks could fit, ask the user.
+The `@task` from the arguments; else the task this session worked on; else a
+short kebab-case name for the work (`@api-refactor`). If several fit, ask.
 
 ## 2. Read the previous handoff
 
-Run `baton show @task`. Keep only what the next steps still need. Drop what
-this session finished and what git, CLAUDE.md, README or tips now hold.
-Next steps ticked `[x]` (the user does that in the dashboard) are done: move
-what still matters into State and drop them.
-History keeps only the last few versions (`keep`, 10 by default), so an open
-decision or parked item must stay in the handoff or move to a tip.
+`baton show @task`. Keep only what the next steps still need. Drop what this
+session finished and what lives in git, CLAUDE.md, README<!-- tips -->, tips<!-- /tips --> or docs. Steps
+ticked `[x]` (the user does that in the dashboard) are done: move what still
+matters into State. History keeps only the last few versions, so open
+decisions and parked items stay in the handoff.
 
-## 3. Write the handoff
+## 3. Collect what would be lost
 
-Run `baton template` for the sections. Goal, State and Next steps are
-required; skip the others when they have nothing to say.
+The next session sees only the repo, git, the user's own directories and
+baton. Everything else this session produced is lost unless saved: review
+results, analyses, research findings, test or benchmark output, the reasons
+behind a decision, a plan the user gave in chat. List these for step 5.
 
-The reader is the next agent and the user scanning it. Write for a glance:
+- `/tmp` and other temporary paths this session wrote to are wiped: every
+  text file there worth keeping becomes a doc.
+- Save text in full, however long. Over ~8000 characters, split it into
+  several docs by section ("Research: update flow (1/3)"), not into a summary.
+- A binary file: the handoff names its path as temporary.
+- Skip what the repo, git log, CLAUDE.md or README already hold.
 
-- Budget: about 3000 characters. One fact per bullet, under 200 characters,
-  at most one level of nesting.
-- State is where things stand now, not the story of this session.
-- Next steps are `1. [ ] ...` checklist items in order; Later stays plain bullets.
-- `path:line` instead of code; the exact command or error text only when it
-  is the point.
-- Do not repeat what lives elsewhere: commits (git log), project rules
-  (CLAUDE.md, README), tips (name the tip ID instead). A stable user
-  preference that is not specific to this task becomes a tip with
-  `origin: user`, not a handoff line.
-- Longer stable text (a plan or rules the user gave, an agreement, a spec)
-  goes into a doc of this task (step 4); the handoff may name it as `[[doc-id]]`.
+## 4. Write and save the handoff
+
+Sections come from `baton template`; Goal, State and Next steps are required,
+skip empty ones. Write for a glance:
+
+- About 3000 characters; one fact per bullet, under 200 characters, at most
+  one level of nesting.
+- State is where things stand now, not the story of the session.
+- Next steps are `1. [ ] ...` items in order; Later stays plain bullets.
+- `path:line` instead of code; a doc as `[[doc-id]]`<!-- tips -->, a tip by its ID<!-- /tips -->.
 
 Good: `- update: TLS fails on Termux, fix in internal/update/http.go:40 (not started)`
-Bad: `- This session we looked into update and found that on Termux, because the
-  static binary does not know the CA path, TLS fails, so we decided ...`
-
-Save it with a quoted heredoc:
+Bad: `- This session we looked into update and found that on Termux, because ...`
 
 ```bash
 baton save @task --title "Short title" <<'HANDOFF'
@@ -64,48 +81,41 @@ baton save @task --title "Short title" <<'HANDOFF'
 HANDOFF
 ```
 
-baton adds frontmatter, git branch/commit, history and the project path. If it
-warns about missing sections or the size budget, fix the body and save again.
+If baton warns about missing sections or the size, fix the body and save again.
 
-## 4. Docs
+## 5. Save docs
 
-A doc is attached to one task and holds text that should not be rewritten
-every session. Make one when:
-
-- the user gave a plan, a workflow, rules or an agreement: copy their words
-  as is;
-- a section has stayed the same for two handoffs and is over ~10 lines;
-- several tasks need the same text.
-
-Check `baton docs list @task` first. The task must be saved already (step 3).
-Write the doc, then replace the section in the handoff with a line such as
-`Workflow: [[migration-workflow]]` (`baton show` lists the task's docs anyway):
+A doc is attached to the task and outlives every handoff; `baton show` lists
+it. Check `baton docs list @task` first and update a doc instead of adding a
+near-duplicate.
 
 ```bash
-baton docs new @task <<'DOC'
----
-title: Migration workflow
----
+baton docs new @task --title "Review of the update flow" --origin agent < /tmp/review.md
+baton docs new @task --title "Migration plan" --origin user <<'DOC'
 1. ...
 DOC
 ```
 
-Never change a doc without the user's consent. A small fix:
-`baton docs edit @task ID` (the full new body on stdin); a doc that is no
-longer needed: `baton docs delete @task ID`, and drop its links.
+- `--origin user`: the user's text (a plan, rules, an agreement), copied as
+  is. Change or delete it only with the user's consent.
+- `--origin agent`: text you wrote or collected. Update it with
+  `baton docs edit @task ID` (full body on stdin) or delete it when stale.
+- A handoff section that stayed the same for two handoffs and is over ~10
+  lines also moves into a doc.
+<!-- tips -->
 
-## 5. Tips
+## 6. Tips
 
-For each non-obvious trap of this session that would help other sessions (a
-misleading error, a flag that does not work, an environment quirk):
+Most sessions add none. For a non-obvious trap that would help other
+sessions (a misleading error, a flag that does not work, an environment
+quirk):
 
-1. `baton tips search WORDS` to find duplicates.
-2. If an existing tip is wrong or outdated, write the new one and run
-   `baton tips supersede OLD NEW`; if this session confirmed one,
-   `baton tips verified ID`.
-3. Otherwise add it (`--global` when it is not specific to this project). One
-   fact per tip, title under 70 characters, up to 8 keywords an agent would
-   search for:
+1. `baton tips search WORDS` for duplicates. A wrong or outdated tip: write
+   the new one, then `baton tips supersede OLD NEW`; a tip this session
+   confirmed: `baton tips verified ID`.
+2. Otherwise add one fact per tip (`--global` if not specific to this
+   project), title under 70 characters, up to 8 keywords. A stable user
+   preference not tied to this task is a tip with `origin: user`.
 
 ```bash
 baton tips new <<'TIP'
@@ -121,15 +131,16 @@ Verify: a quick command or check that proves it still holds.
 TIP
 ```
 
-`origin` is `session` (found here), `failure` (an error hit), `web` (docs) or
-`user` (the user said so). Only add tips worth keeping; most sessions add none.
+`origin`: `session` (found here), `failure` (an error hit), `web` (docs),
+`user` (the user said so).
+<!-- /tips -->
 
 ## Modes
 
-- `/handoff @task done`: save a final handoff if the session changed anything,
-  then `baton done task`.
-- `/handoff fork NEW`: first save the current task (`baton save @parent`), then
-  save the forked work with `baton save @NEW --from parent`.
+- `@task done`: save a final handoff if anything changed, then `baton done @task`.
+- `fork NEW`: save the current task, then `baton save @NEW --from parent`.
 
-Finish by telling the user the task name and that `/pickup @task` (or
-`baton pickup <project> @task` from any directory) continues it.
+## Report
+
+Tell the user the task name, the docs saved or changed, and that `/pickup @task`
+(or `baton pickup <project> @task` from any directory) continues it.

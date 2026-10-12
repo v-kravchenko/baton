@@ -13,8 +13,9 @@ func (app *App) docStore() *docs.Store {
 }
 
 type docRef struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Origin string `json:"origin,omitempty"`
 }
 
 // docsForHandoff returns the docs attached to the task of the handoff.
@@ -22,7 +23,7 @@ func (app *App) docsForHandoff(p string, h *store.Handoff) []docRef {
 	ds, _ := app.docStore().List(p, h.Task)
 	var out []docRef
 	for _, d := range ds {
-		out = append(out, docRef{ID: d.ID, Title: d.Title})
+		out = append(out, docRef{ID: d.ID, Title: d.Title, Origin: d.Origin})
 	}
 	return out
 }
@@ -31,6 +32,7 @@ type docJSON struct {
 	ID      string `json:"id"`
 	Task    string `json:"task"`
 	Title   string `json:"title"`
+	Origin  string `json:"origin,omitempty"`
 	Created string `json:"created"`
 	Updated string `json:"updated"`
 	Version string `json:"version"`
@@ -39,7 +41,7 @@ type docJSON struct {
 }
 
 func docToJSON(d *docs.Doc, body bool) docJSON {
-	j := docJSON{ID: d.ID, Task: d.Task, Title: d.Title,
+	j := docJSON{ID: d.ID, Task: d.Task, Title: d.Title, Origin: d.Origin,
 		Created: d.Created.Format("2006-01-02T15:04:05Z07:00"),
 		Updated: d.Updated.Format("2006-01-02T15:04:05Z07:00"), Version: d.Version, Path: d.Path}
 	if body {
@@ -119,6 +121,9 @@ func cmdDocs(app *App, a *args) error {
 		}
 		app.printf("%s\n", docLine(d))
 		app.printf("updated %s\n", d.Updated.Format("2006-01-02 15:04 -07:00"))
+		if d.Origin != "" {
+			app.printf("origin %s\n", d.Origin)
+		}
 		app.printf("\n%s", d.Body)
 		return nil
 
@@ -133,7 +138,8 @@ func cmdDocs(app *App, a *args) error {
 		if err != nil {
 			return err
 		}
-		d, warns, err := ds.New(docs.NewInput{Project: p, Task: task, Body: body, ID: a.vals["id"], Title: a.vals["title"]})
+		d, warns, err := ds.New(docs.NewInput{Project: p, Task: task, Body: body, ID: a.vals["id"], Title: a.vals["title"],
+			Origin: a.vals["origin"]})
 		if err != nil {
 			return err
 		}

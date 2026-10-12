@@ -11,7 +11,7 @@ import (
 func TestEmbeddedFilesExistAndAreMarked(t *testing.T) {
 	for _, in := range Registry {
 		for _, f := range in.Files {
-			data, err := Read(f.Src)
+			data, err := Read(f.Src, true)
 			if err != nil {
 				t.Fatalf("%s: %v", f.Src, err)
 			}
@@ -22,13 +22,21 @@ func TestEmbeddedFilesExistAndAreMarked(t *testing.T) {
 				t.Errorf("%s references skill-dir scripts", f.Src)
 			}
 		}
-		for _, b := range []File{in.Block, in.NoTipsBlock} {
-			if _, err := Read(b.Src); err != nil {
-				t.Errorf("%s: %v", b.Src, err)
+		for _, f := range append([]File{in.Block}, in.Files...) {
+			on, err := Read(f.Src, true)
+			if err != nil {
+				t.Fatalf("%s: %v", f.Src, err)
 			}
-		}
-		if data, _ := Read(in.NoTipsBlock.Src); strings.Contains(string(data), "tips") {
-			t.Errorf("%s mentions tips", in.NoTipsBlock.Src)
+			if strings.Contains(string(on), tipsBegin) || strings.Contains(string(on), tipsEnd) {
+				t.Errorf("%s has unbalanced tips markers", f.Src)
+			}
+			if f.Tips {
+				continue
+			}
+			off, _ := Read(f.Src, false)
+			if strings.Contains(strings.ToLower(string(off)), "tip") {
+				t.Errorf("%s mentions tips with tips off", f.Src)
+			}
 		}
 	}
 	// Every embedded file is registered.
@@ -38,7 +46,7 @@ func TestEmbeddedFilesExistAndAreMarked(t *testing.T) {
 		}
 		found := false
 		for _, in := range Registry {
-			found = found || in.Block.Src == p || in.NoTipsBlock.Src == p
+			found = found || in.Block.Src == p
 			for _, f := range in.Files {
 				found = found || f.Src == p
 			}
@@ -48,6 +56,16 @@ func TestEmbeddedFilesExistAndAreMarked(t *testing.T) {
 		}
 		return nil
 	})
+}
+
+func TestCutTips(t *testing.T) {
+	text := "a\n<!-- tips -->\nb\n<!-- /tips -->\nc<!-- tips --> d<!-- /tips -->.\n"
+	if got := cutTips(text, true); got != "a\nb\nc d.\n" {
+		t.Errorf("on: %q", got)
+	}
+	if got := cutTips(text, false); got != "a\nc.\n" {
+		t.Errorf("off: %q", got)
+	}
 }
 
 func TestInstallUninstall(t *testing.T) {

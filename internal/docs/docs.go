@@ -35,6 +35,7 @@ type Doc struct {
 	FM      *store.Frontmatter
 	Body    string
 	Title   string
+	Origin  string // "user" (the user's text) or "agent"; empty means user
 	Created time.Time
 	Updated time.Time
 	Version string // hash of the file; EditInput.Expect compares it
@@ -88,6 +89,7 @@ func Read(path, project, task string) (*Doc, error) {
 func (d *Doc) load() {
 	fm := d.FM
 	d.Title = fm.Get("title")
+	d.Origin = fm.Get("origin")
 	d.Created, _ = time.Parse(time.RFC3339, fm.Get("created"))
 	d.Updated, _ = time.Parse(time.RFC3339, fm.Get("updated"))
 }
@@ -160,8 +162,9 @@ type NewInput struct {
 	Project string
 	Task    string
 	ID      string // optional; else a slug of the title
-	Body    string // may start with frontmatter (title)
+	Body    string // may start with frontmatter (title, origin)
 	Title   string
+	Origin  string // optional: user or agent
 }
 
 // New writes a doc of an existing task and returns it with size warnings. A
@@ -186,6 +189,10 @@ func (s *Store) New(in NewInput) (*Doc, []string, error) {
 	if title == "" {
 		return nil, nil, fmt.Errorf("doc needs a title (--title or title: in frontmatter)")
 	}
+	origin := strings.TrimSpace(pick(in.Origin, "origin", ""))
+	if origin != "" && origin != "user" && origin != "agent" {
+		return nil, nil, fmt.Errorf("doc origin must be user or agent, not %q", origin)
+	}
 	body = strings.TrimSpace(strings.ReplaceAll(body, "\r\n", "\n"))
 	if body == "" {
 		return nil, nil, fmt.Errorf("empty doc body (pass it on stdin)")
@@ -201,6 +208,9 @@ func (s *Store) New(in NewInput) (*Doc, []string, error) {
 	out := fm.Clone()
 	now := s.now().Format(time.RFC3339)
 	out.Set("title", title)
+	if origin != "" {
+		out.Set("origin", origin)
+	}
 	out.Set("created", now)
 	out.Set("updated", now)
 

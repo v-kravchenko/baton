@@ -34,6 +34,20 @@ stdout '"docs": \['
 exec baton docs list
 stdout '@screens migration-workflow: Migration workflow'
 
+# An origin marks who wrote a doc; edit keeps it.
+stdin $WORK/review.md
+exec baton docs new @screens --title 'Review' --origin agent
+exec baton docs show @screens review
+stdout '^origin agent$'
+exec baton show @screens
+stdout 'review: Review \(agent\)$'
+stdin $WORK/review.md
+exec baton docs edit @screens review
+grep 'origin: agent' $WORK/root/api/docs/screens/review.md
+stdin $WORK/review.md
+! exec baton docs new @screens --title 'Bad' --origin bot
+stderr 'user or agent'
+
 # Edit keeps the title; a stale version is refused.
 stdin $WORK/flow2.md
 exec baton docs edit @screens migration-workflow
@@ -53,6 +67,8 @@ exec baton docs show @views migration-workflow
 exec baton docs delete @views migration-workflow
 ! exists $WORK/root/api/docs/views/migration-workflow.md
 
+-- review.md --
+Found two issues.
 -- flow.md --
 ---
 title: Migration workflow

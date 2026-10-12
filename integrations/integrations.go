@@ -25,6 +25,8 @@ const Marker = "managed by baton integrate"
 const (
 	blockBegin = "<!-- baton:begin (managed by baton integrate) -->"
 	blockEnd   = "<!-- baton:end -->"
+	tipsBegin  = "<!-- tips -->"
+	tipsEnd    = "<!-- /tips -->"
 )
 
 // File maps an embedded file to a path under the agent's config directory.
@@ -40,8 +42,6 @@ type Integration struct {
 	Base  func(home string) string // agent config directory
 	Files []File
 	Block File // instruction block appended to an existing instructions file
-	// NoTipsBlock replaces Block with tips off.
-	NoTipsBlock File
 }
 
 // Registry lists the supported agents.
@@ -59,8 +59,7 @@ var Registry = []Integration{
 			{"claude/skills/pickup/SKILL.md", "skills/pickup/SKILL.md", false},
 			{"claude/skills/tips/SKILL.md", "skills/tips/SKILL.md", true},
 		},
-		Block:       File{"claude/CLAUDE.md", "CLAUDE.md", false},
-		NoTipsBlock: File{"claude/CLAUDE-notips.md", "CLAUDE.md", false},
+		Block: File{"claude/CLAUDE.md", "CLAUDE.md", false},
 	},
 	{
 		Name: "opencode",
@@ -75,8 +74,7 @@ var Registry = []Integration{
 			{"opencode/commands/pickup.md", "commands/pickup.md", false},
 			{"opencode/commands/tips.md", "commands/tips.md", true},
 		},
-		Block:       File{"opencode/AGENTS.md", "AGENTS.md", false},
-		NoTipsBlock: File{"opencode/AGENTS-notips.md", "AGENTS.md", false},
+		Block: File{"opencode/AGENTS.md", "AGENTS.md", false},
 	},
 }
 
@@ -99,8 +97,43 @@ func Get(name string) (Integration, error) {
 	return Integration{}, fmt.Errorf("unknown integration %q (have: %s)", name, strings.Join(Names(), ", "))
 }
 
-// Read returns an embedded file.
-func Read(src string) ([]byte, error) { return files.ReadFile(src) }
+// Read returns an embedded file as installed: with tips off the text between
+// tips markers is cut, with tips on only the markers are.
+func Read(src string, tips bool) ([]byte, error) {
+	data, err := files.ReadFile(src)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(cutTips(string(data), tips)), nil
+}
+
+// cutTips removes the tips markers, and with tips off what they enclose. A
+// marker or cut that fills whole lines takes its line break along.
+func cutTips(text string, tips bool) string {
+	cut := func(text string, i, j int) string {
+		if (i == 0 || text[i-1] == '\n') && j < len(text) && text[j] == '\n' {
+			j++
+		}
+		return text[:i] + text[j:]
+	}
+	for {
+		i := strings.Index(text, tipsBegin)
+		if i < 0 {
+			return text
+		}
+		j := strings.Index(text[i:], tipsEnd)
+		if j < 0 {
+			return text
+		}
+		j += i
+		if tips {
+			text = cut(text, j, j+len(tipsEnd))
+			text = cut(text, i, i+len(tipsBegin))
+		} else {
+			text = cut(text, i, j+len(tipsEnd))
+		}
+	}
+}
 
 // Installed reports whether any managed file of the integration exists.
 func (in Integration) Installed(home string) bool {
@@ -115,7 +148,8 @@ func (in Integration) Installed(home string) bool {
 
 // Install writes the files and the instruction block. Existing files not
 // written by baton are left alone unless force is set. With tips off the
-// Tips files are removed (if baton wrote them) and NoTipsBlock is written.
+// Tips files are removed (if baton wrote them) and the tips parts are cut
+// from the rest.
 // It returns the paths written and removed.
 func (in Integration) Install(home string, force, tips bool) (written, removed []string, err error) {
 	base := in.Base(home)
@@ -131,7 +165,7 @@ func (in Integration) Install(home string, force, tips bool) (written, removed [
 			}
 			continue
 		}
-		data, err := files.ReadFile(f.Src)
+		data, err := Read(f.Src, tips)
 		if err != nil {
 			return written, removed, err
 		}
@@ -145,11 +179,7 @@ func (in Integration) Install(home string, force, tips bool) (written, removed [
 		}
 		written = append(written, dst)
 	}
-	src := in.Block
-	if !tips {
-		src = in.NoTipsBlock
-	}
-	block, err := files.ReadFile(src.Src)
+	block, err := Read(in.Block.Src, tips)
 	if err != nil {
 		return written, removed, err
 	}
