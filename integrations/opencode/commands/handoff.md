@@ -16,7 +16,7 @@ under the baton root yourself: pass bodies on stdin.
 | `baton template` | the handoff sections |
 | `baton save @task --title T` | save the handoff (body on stdin) |
 | `baton docs list\|show @task [ID]` | the task's docs |
-| `baton docs new @task --title T --origin user\|agent` | new doc (body on stdin) |
+| `baton docs new @task --title T [--id ID] --origin user\|agent` | new doc (body on stdin) |
 | `baton docs edit\|delete @task ID` | replace (body on stdin) or remove a doc |
 | `baton history @task [N]` | earlier handoffs (1 = newest) |
 | `baton done\|restore @task`, `baton rename OLD NEW` | archive, reopen, rename a task |
@@ -30,7 +30,8 @@ user: run them only when asked.
 ## 1. Pick the task
 
 Run `baton tasks`. The `@task` from the arguments; else the task this session worked on; else a
-short kebab-case name for the work (`@api-refactor`). If several fit, ask.
+short kebab-case name for the work, in English (`@api-refactor`). If several
+fit, ask.
 
 ## 2. Read the previous handoff
 
@@ -62,6 +63,8 @@ skip empty ones. Write for a glance:
 - About 3000 characters; one fact per bullet, under 200 characters, at most
   one level of nesting.
 - State is where things stand now, not the story of the session.
+- `--title` (any language): what the handoff is about, not its current step
+  or state. Good: `skills and docs rewrite`; bad: `Next: update the VPS`.
 - Next steps are `1. [ ] ...` items in order; Later stays plain bullets.
 - `path:line` instead of code; a doc as `[[doc-id]]`<!-- tips -->, a tip by its ID<!-- /tips -->.
 
@@ -94,6 +97,8 @@ DOC
   is. Change or delete it only with the user's consent.
 - `--origin agent`: text you wrote or collected. Update it with
   `baton docs edit @task ID` (full body on stdin) or delete it when stale.
+- Doc ids are English: pass a short English `--id` when the title is in
+  another language.
 - A handoff section that stayed the same for two handoffs and is over ~10
   lines also moves into a doc.
 <!-- tips -->

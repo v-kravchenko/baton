@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.5
+
+- The `/handoff` skill says what the handoff `--title` is for: the subject
+  of the handoff, not its current step or state. Task names and doc ids are
+  English (`--id` when a doc title is in another language).
+
 ## 0.2.4
 
 - Skills rewritten: shorter, with a table of the `baton` commands an agent
