@@ -6,8 +6,8 @@
 [![go version](https://img.shields.io/github/go-mod/go-version/v-kravchenko/baton)](go.mod)
 [![license](https://img.shields.io/github/license/v-kravchenko/baton)](LICENSE)
 
-`baton` is a standalone CLI that lets a coding agent (Claude Code, opencode or
-any other) save the state of a session as a Markdown handoff for a named task,
+`baton` is a standalone CLI that lets a coding agent (Claude Code, opencode, pi
+or any other) save the state of a session as a Markdown handoff for a named task,
 so that a later session on any machine and with any agent can pick it up.
 
 - **Tasks.** Several named tasks per project (`@api-refactor`), history with
@@ -32,7 +32,7 @@ is no branch/commit/staleness data).
 # Linux, macOS, Termux
 curl -fsSL https://raw.githubusercontent.com/v-kravchenko/baton/main/install.sh | sh
 # with agent integrations
-curl -fsSL https://raw.githubusercontent.com/v-kravchenko/baton/main/install.sh | sh -s -- --integrate claude,opencode
+curl -fsSL https://raw.githubusercontent.com/v-kravchenko/baton/main/install.sh | sh -s -- --integrate claude,opencode,pi
 # without tips (see Tips)
 curl -fsSL https://raw.githubusercontent.com/v-kravchenko/baton/main/install.sh | sh -s -- --integrate claude --no-tips
 ```
@@ -58,6 +58,7 @@ SmartScreen warns about the unsigned `.exe` when it comes from a browser.
 ```sh
 cd ~/src/api
 baton integrate claude          # /handoff, /pickup, /tips for Claude Code
+baton integrate pi              # /handoff, /pickup, /tips for pi
 # ... in an agent session: /handoff @auth ...
 baton tasks                     # @auth: Refresh token flow, 2h ago · main @ a1b2c3d
 cd ~ && baton pickup api @auth  # cd ~/src/api && claude "/pickup @auth"
@@ -204,7 +205,7 @@ baton docs [list] [@task] | show @task ID | new @task [--id ID] [--title T] [--o
 baton dashboard [--port N] [--host H] [--no-open] [--background|--stop] [--json]
 baton service install|status|restart|uninstall [--dry-run]
 baton auth status|on|off|password|logout-all
-baton integrate claude|opencode [--uninstall] [--force] [--no-tips]
+baton integrate claude|opencode|pi [--uninstall] [--force] [--no-tips]
 baton config init|path
 baton template
 baton update [--check] [--force]
@@ -276,11 +277,12 @@ dashboard.auth.max = 30d
 agent.default = claude
 agent.claude = claude "/pickup {task}"
 agent.opencode = opencode --prompt "/pickup {task}"
+agent.pi = pi "/pickup {task}"
 ```
 
 Flat `key = value`; `#` starts a comment at the beginning of a line or after
 whitespace. An unknown key is a warning, not an error. Without any `agent.*`
-lines the two agents above are built in.
+lines the three agents above are built in.
 
 `baton config init` (run by the install scripts) writes the file with every
 key commented out at its default, unless it exists; `baton config path`
@@ -391,7 +393,10 @@ protected by the ACLs of your profile.
 and appends an instruction block to `~/.claude/CLAUDE.md`
 (`CLAUDE_CONFIG_DIR` is honored). `baton integrate opencode` writes
 `~/.config/opencode/commands/{handoff,pickup,tips}.md` and a block in
-`~/.config/opencode/AGENTS.md`. Skills contain only Markdown and call `baton`
+`~/.config/opencode/AGENTS.md`. `baton integrate pi` writes
+`~/.pi/agent/prompts/{handoff,pickup,tips}.md` (prompt templates, so the
+commands are `/handoff`, `/pickup`, `/tips`) and a block in
+`~/.pi/agent/AGENTS.md` (`PI_CODING_AGENT_DIR` is honored). Skills contain only Markdown and call `baton`
 from `PATH`; Claude Code skills need nothing but `Bash(baton *)`. The
 handoff skill also tells the agent to save as docs what would otherwise be
 lost: reviews, analyses, text files in `/tmp`. Tips parts of the embedded

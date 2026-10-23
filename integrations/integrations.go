@@ -15,7 +15,7 @@ import (
 	"github.com/v-kravchenko/baton/internal/fsutil"
 )
 
-//go:embed claude opencode
+//go:embed claude opencode pi
 var files embed.FS
 
 // Marker identifies files written by baton; others are never overwritten
@@ -75,6 +75,21 @@ var Registry = []Integration{
 			{"opencode/commands/tips.md", "commands/tips.md", true},
 		},
 		Block: File{"opencode/AGENTS.md", "AGENTS.md", false},
+	},
+	{
+		Name: "pi",
+		Base: func(home string) string {
+			if d := os.Getenv("PI_CODING_AGENT_DIR"); d != "" {
+				return d
+			}
+			return filepath.Join(home, ".pi", "agent")
+		},
+		Files: []File{
+			{"pi/prompts/handoff.md", "prompts/handoff.md", false},
+			{"pi/prompts/pickup.md", "prompts/pickup.md", false},
+			{"pi/prompts/tips.md", "prompts/tips.md", true},
+		},
+		Block: File{"pi/AGENTS.md", "AGENTS.md", false},
 	},
 }
 

@@ -57,7 +57,7 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Root != "/r" || c.Keep != 10 || c.Port != 8765 || c.DefaultAgent != "claude" || len(c.Agents) != 2 || !c.BuiltinAgents || !c.Tips {
+	if c.Root != "/r" || c.Keep != 10 || c.Port != 8765 || c.DefaultAgent != "claude" || len(c.Agents) != 3 || !c.BuiltinAgents || !c.Tips {
 		t.Errorf("defaults = %+v", c)
 	}
 }

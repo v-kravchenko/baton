@@ -105,6 +105,7 @@ type Config struct {
 var DefaultAgents = []Agent{
 	{"claude", `claude "/pickup {task}"`},
 	{"opencode", `opencode --prompt "/pickup {task}"`},
+	{"pi", `pi "/pickup {task}"`},
 }
 
 // Defaults returns the config used when no file exists.
@@ -443,8 +444,8 @@ const DefaultFile = `# baton config: flat "key = value"; # starts a comment.
 # dashboard.auth.max = 30d
 
 # Agents for "baton pickup" and the dashboard's copy buttons; "baton integrate
-# NAME" adds its line. Without agent.* lines the CLI falls back to claude and
-# opencode and the dashboard shows no pickup buttons.
+# NAME" adds its line. Without agent.* lines the CLI falls back to claude,
+# opencode and pi and the dashboard shows no pickup buttons.
 # agent.default = claude
 `
 

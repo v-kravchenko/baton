@@ -298,7 +298,7 @@ func TestPickupButtonsOnlyForConfiguredAgents(t *testing.T) {
 		w := e.do("GET", "/api/projects/api/tasks/auth", "", local)
 		return len(decode(t, w)["pickup"].([]any))
 	}
-	if got := n(); got != 2 {
+	if got := n(); got != 3 {
 		t.Errorf("configured agents: %d buttons", got)
 	}
 	e.srv.Cfg.BuiltinAgents = true

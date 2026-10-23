@@ -2,7 +2,7 @@
 # Install baton on Linux, macOS or Termux.
 #
 #   curl -fsSL https://raw.githubusercontent.com/v-kravchenko/baton/main/install.sh | sh
-#   curl -fsSL .../install.sh | sh -s -- --integrate claude,opencode
+#   curl -fsSL .../install.sh | sh -s -- --integrate claude,opencode,pi
 #   curl -fsSL .../install.sh | sh -s -- --integrate claude --no-tips
 #
 # Environment: BATON_INSTALL_DIR (default ~/.local/bin, $PREFIX/bin on Termux),

@@ -129,6 +129,27 @@ func TestOpencodeXDG(t *testing.T) {
 	}
 }
 
+func TestPiAgentDir(t *testing.T) {
+	x := t.TempDir()
+	t.Setenv("PI_CODING_AGENT_DIR", x)
+	in, _ := Get("pi")
+	written, _, err := in.Install("/nonexistent-home", false, false)
+	if err != nil || len(written) != 3 {
+		t.Fatalf("written = %v, %v", written, err)
+	}
+	if _, err := os.Stat(filepath.Join(x, "prompts", "handoff.md")); err != nil {
+		t.Error(err)
+	}
+	md, _ := os.ReadFile(filepath.Join(x, "AGENTS.md"))
+	if strings.Contains(string(md), "tips") {
+		t.Errorf("AGENTS.md = %q", md)
+	}
+	removed, err := in.Uninstall("/nonexistent-home")
+	if err != nil || len(removed) != 3 {
+		t.Errorf("removed = %v, %v", removed, err)
+	}
+}
+
 func TestInstallNoTips(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", "")

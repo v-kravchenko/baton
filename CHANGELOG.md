@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.6
+
+- pi integration: `baton integrate pi` writes prompt templates for
+  `/handoff`, `/pickup` and `/tips` to `~/.pi/agent/prompts/` and appends an
+  instruction block to `~/.pi/agent/AGENTS.md` (`PI_CODING_AGENT_DIR` is
+  honored).
+- New built-in agent: `agent.pi = pi "/pickup {task}"` (without `agent.*`
+  lines the CLI falls back to claude, opencode and pi).
+
 ## 0.2.5
 
 - The `/handoff` skill says what the handoff `--title` is for: the subject

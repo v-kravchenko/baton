@@ -60,6 +60,8 @@ func cmdIntegrate(app *App, a *args) error {
 		app.printf("Claude Code: %s available in new sessions\n", cmds)
 	case "opencode":
 		app.printf("opencode: %s available in new sessions\n", cmds)
+	case "pi":
+		app.printf("pi: %s available in new sessions\n", cmds)
 	}
 	return nil
 }
